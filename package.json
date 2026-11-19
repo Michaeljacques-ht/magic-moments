@@ -1,1 +1,13 @@
-{"name":"magic-moments-autonome","version":"2.0.0","private":true,"type":"module","scripts":{"start":"node server.js"},"engines":{"node":">=20"},"dependencies":{}}
+{
+  "name": "magic-moments-autonome",
+  "version": "9.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {}
+}

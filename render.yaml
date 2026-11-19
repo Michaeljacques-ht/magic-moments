@@ -8,3 +8,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # Paiement en ligne PLOP PLOP : valeurs à saisir dans Render > Environment (jamais dans le code)
+      - key: PLOP_CLIENT_ID
+        sync: false
+      - key: PLOP_CLIENT_SECRET
+        sync: false
