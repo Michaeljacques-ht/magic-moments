@@ -79,3 +79,22 @@ Sans identifiants PlopPlop, le paiement manuel (lien + référence déclarée) r
 - **Administration — « Éléments pour Créer une surprise »** : pour chaque élément, saisir le nom (+ kreyòl), la dimension (+ kreyòl), une description, le prix de base (0 possible), une photo, et autant de **choix** que nécessaire. Chaque choix : nom (+ kreyòl), type « un seul choix » ou « plusieurs choix possibles », obligatoire ou non, et ses options, une par ligne : `Nom | Nom kreyòl | Supplément HTG` (ex. `Grand | Gwo | 3000`).
 - Migration automatique : les anciennes couleurs/saveurs et tailles deviennent des choix « Couleur / saveur » et « Taille » avec un supplément à 0 HTG — **à ajuster** pour que le prix varie selon la taille.
 - La commande, le courriel, le reçu et le tableau de bord indiquent les choix du client et leurs suppléments.
+
+## V12 — Espace d’administration séparé, RH, comptabilité, navigation mobile
+**Administration : https://votre-site/admin** (bouton « Administration » dans l’en-tête une fois connecté en administrateur). Le tableau de bord n’est plus mélangé au site public.
+- **Tableau de bord** : recettes, dépenses et résultat du mois, trésorerie, montants à encaisser, salaires à payer ; liste « À faire » (commandes à confirmer, paiements à vérifier, candidatures, éléments à tarifer) ; événements des 7 prochains jours ; graphique sur 6 mois.
+- **Commandes** : recherche et filtres (à traiter, à confirmer, payées…), détail repliable, statut, montant à payer, lien Magic Live, lien de paiement à copier, bouton WhatsApp client, reçu.
+- **Catalogue** : surprises prêtes, éléments à composer, catégories, matériel de location — édition dans une fenêtre, photos et version kreyòl incluses.
+- **Site et contenu** : coordonnées, **diaporama d’accueil** (10 photos ou affiches qui défilent, légendes FR/KR, ordre modifiable), **annonces** (bande défilante sous le menu, dates de début et de fin, lien), réalisations, témoignages.
+- **Ressources humaines** : offres d’emploi publiées dans « Carrières » ; candidatures avec CV, statuts (nouvelle, présélectionnée, entretien, embauchée, refusée) et notes ; bouton « Embaucher » qui crée la fiche employé ; fiches du personnel (contrat, salaire mensuel ou journalier, mode de paiement) ; avances sur salaire ; paie mensuelle (préparation automatique, primes, retenues, déduction des avances, versement, fiche de paie imprimable).
+- **Comptabilité** : comptes de trésorerie (caisse, MonCash, NatCash, banque, PlopPlop, + vos comptes) avec solde d’ouverture ; journal des recettes, dépenses et virements avec pièces justificatives (photo ou PDF) ; écritures **automatiques** pour les commandes payées, les remboursements, les salaires et les avances ; synthèse par période (résultat, soldes, catégories, 12 mois) ; **export Excel (CSV)**.
+- **Paramètres** : état du paiement en ligne et des courriels, journal des courriels.
+
+**Site public**
+- Téléphone : en-tête compact (logo, langue, bouton menu) et **menu tiroir** ; **barre de raccourcis en bas** (Accueil, Surprises, Créer, Location, Compte).
+- **Diaporama** des photos et affiches à l’accueil (défilement automatique, glissement du doigt).
+- **Bande d’annonces** défilante (fermable par le visiteur).
+- **Carrières** : liste des postes ouverts et candidature en ligne avec CV (PDF, Word ou photo).
+- Moins de défilement : sections « Nos atouts » et « Magic Live » fusionnées ailleurs, catalogue / réalisations / avis / matériel en carrousels horizontaux sur téléphone, configurateur ouvert sur la première dimension, formulaire de location replié, espace client affiché seulement une fois connecté.
+- Les fichiers privés (CV, pièces comptables) sont stockés dans le dossier de données et téléchargeables uniquement par l’administrateur.
+Données existantes conservées ; la photo d’accueil actuelle devient la première image du diaporama.

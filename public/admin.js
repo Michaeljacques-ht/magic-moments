@@ -1,0 +1,524 @@
+// Magic Moments — espace d'administration (/admin)
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const h = x => String(x ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = n => new Intl.NumberFormat('fr-HT').format(Math.round(Number(n) || 0)) + ' HTG';
+const fmtDate = v => v ? new Date(v.length === 10 ? v + 'T12:00:00' : v).toLocaleDateString('fr-CA', { dateStyle: 'medium' }) : '—';
+const fmtDT = v => v ? new Date(v).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+const today = () => new Date().toISOString().slice(0, 10);
+const LABELS = { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En cours', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' };
+const PILL = { pending: 'warn', confirmed: '', preparing: '', in_progress: '', completed: 'ok', cancelled: 'grey', unpaid: 'warn', pending_verification: 'warn', paid: 'ok', refunded: 'grey' };
+const pill = (v, map = PILL, lab = LABELS) => `<span class="pill ${map[v] || ''}">${h(lab[v] || v)}</span>`;
+
+async function api(url, opts = {}) {
+  const res = await fetch(url, { credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, ...opts });
+  let data; try { data = await res.json(); } catch { data = {}; }
+  if (!res.ok) { const e = Error(data.error || 'Erreur de connexion'); e.status = res.status; throw e; }
+  return data;
+}
+const post = (url, body, method = 'POST') => api(url, { method, body: JSON.stringify(body) });
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.remove('hidden'); clearTimeout(window.tt); window.tt = setTimeout(() => t.classList.add('hidden'), 5000); }
+const safe = fn => async (...a) => { try { return await fn(...a); } catch (e) { toast(e.message); } };
+
+/* ---------- Formulaires génériques ---------- */
+// Champ : { name, label, type, options:[[valeur, libellé]], required, placeholder, hint, min, rows }. Un tableau de champs = une ligne à 2 ou 3 colonnes.
+function field(f, v) {
+  if (Array.isArray(f)) return `<div class="grid${f.length === 3 ? 3 : 2}">${f.map(x => field(x, v)).join('')}</div>`;
+  const val = v?.[f.name] ?? f.value ?? '', req = f.required ? 'required' : '', ph = f.placeholder ? `placeholder="${h(f.placeholder)}"` : '';
+  const hint = f.hint ? `<p class="hint">${h(f.hint)}</p>` : '';
+  if (f.type === 'checkbox') return `<label class="check"><input type="checkbox" name="${f.name}" ${val === true || (val === '' && f.checked) ? 'checked' : ''}> ${h(f.label)}</label>${hint}`;
+  if (f.type === 'select') return `<label>${h(f.label)}<select name="${f.name}" ${req}>${f.options.map(([o, l]) => `<option value="${h(o)}" ${String(o) === String(val) ? 'selected' : ''}>${h(l)}</option>`).join('')}</select></label>${hint}`;
+  if (f.type === 'textarea') return `<label>${h(f.label)}<textarea name="${f.name}" rows="${f.rows || 3}" ${req} ${ph}>${h(Array.isArray(val) ? val.join('\n') : val)}</textarea></label>${hint}`;
+  return `<label>${h(f.label)}<input name="${f.name}" type="${f.type || 'text'}" value="${h(val)}" ${req} ${ph} ${f.min != null ? `min="${f.min}"` : ''} ${f.type === 'number' ? 'step="1"' : ''}></label>${hint}`;
+}
+function readForm(form, fields) {
+  const out = {};
+  for (const f of fields.flat()) {
+    const el = form.elements[f.name]; if (!el) continue;
+    out[f.name] = f.type === 'checkbox' ? el.checked : f.type === 'number' ? (el.value === '' ? null : Number(el.value)) : f.lines ? el.value.split('\n').map(x => x.trim()).filter(Boolean) : el.value.trim();
+  }
+  return out;
+}
+function openModal(title, html) { $('#modalTitle').textContent = title; $('#modalBody').innerHTML = html; $('#modal').classList.remove('hidden'); $('#modal').scrollTop = 0; }
+const closeModal = () => $('#modal').classList.add('hidden');
+$('#modalClose').onclick = closeModal;
+$('#modal').addEventListener('mousedown', e => { if (e.target.id === 'modal') closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+/** Ouvre un formulaire dans la fenêtre modale. onSubmit(valeurs, form) ; onRender(form) pour les parties sur mesure. */
+function openForm({ title, fields, values = {}, before = '', extra = '', submit = 'Enregistrer', onSubmit, onRender, remove }) {
+  openModal(title, `<form id="mform">${before}${fields.map(f => field(f, values)).join('')}${extra}<div class="form-actions">${remove ? '<button type="button" class="btn danger" id="mremove">Supprimer</button>' : ''}<button type="button" class="btn line" id="mcancel">Annuler</button><button class="btn primary">${h(submit)}</button></div></form>`);
+  const form = $('#mform'); $('#mcancel').onclick = closeModal;
+  if (remove) $('#mremove').onclick = safe(async () => { if (!confirm('Confirmer la suppression ?')) return; await remove(); closeModal(); });
+  form.onsubmit = safe(async e => { e.preventDefault(); const btn = form.querySelector('button.primary'); btn.disabled = true; try { await onSubmit(readForm(form, fields), form); closeModal(); } finally { btn.disabled = false; } });
+  onRender?.(form);
+}
+
+/* ---------- Envoi de fichiers ---------- */
+function resizeImage(file, max = 1600) {
+  return new Promise((resolve, reject) => {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return reject(Error('Image JPG, PNG ou WEBP requise'));
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const k = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); resolve(c.toDataURL('image/jpeg', 0.85).split(',')[1]); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(Error('Image illisible')); }; img.src = url;
+  });
+}
+const uploadImage = async (file, kind = 'package') => (await post('/api/admin/media', { mime: 'image/jpeg', data: await resizeImage(file), title: file.name, kind })).id;
+const readBase64 = file => new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result.split(',')[1]); r.onerror = rej; r.readAsDataURL(file); });
+async function uploadAttachment(file) {
+  if (file.size > 10e6) throw Error('10 Mo maximum');
+  const data = file.type.startsWith('image/') ? await resizeImage(file) : await readBase64(file);
+  return (await post('/api/admin/files', { name: file.name, mime: file.type.startsWith('image/') ? 'image/jpeg' : file.type, data })).id;
+}
+const thumbHTML = (id, rm, wide) => `<span class="thumb ${wide ? 'wide' : ''}"><img src="/media/${h(id)}" alt=""><button type="button" data-rm="${h(rm)}" aria-label="Retirer">×</button></span>`;
+
+/* ---------- Navigation ---------- */
+const VIEWS = [
+  { id: 'dashboard', ico: '📊', label: 'Tableau de bord' },
+  { id: 'orders', ico: '🧾', label: 'Commandes', badge: d => d.orders_pending + d.payments_to_check },
+  { id: 'rentals', ico: '🪑', label: 'Locations', badge: d => d.rentals_pending },
+  { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location']] },
+  { id: 'content', ico: '🖼️', label: 'Site et contenu', tabs: [['contact', 'Coordonnées'], ['slides', 'Diaporama d’accueil'], ['announcements', 'Annonces'], ['gallery', 'Réalisations'], ['testimonials', 'Témoignages']] },
+  { id: 'hr', ico: '👥', label: 'Ressources humaines', badge: d => d.applications_new, tabs: [['recruit', 'Recrutement'], ['staff', 'Personnel'], ['payroll', 'Paie et avances']] },
+  { id: 'accounting', ico: '📒', label: 'Comptabilité', tabs: [['summary', 'Synthèse'], ['journal', 'Journal'], ['accounts', 'Comptes']] },
+  { id: 'settings', ico: '⚙️', label: 'Paramètres' }
+];
+const S = { view: 'dashboard', tab: {}, dash: null, settings: {}, period: { from: today().slice(0, 8) + '01', to: today() }, orderFilter: { q: '', status: 'open', pay: '' } };
+function renderNav() {
+  $('#sideNav').innerHTML = VIEWS.map(v => { const n = S.dash && v.badge ? v.badge(S.dash) : 0; return `<button type="button" data-view="${v.id}" class="${v.id === S.view ? 'active' : ''}"><span class="ico">${v.ico}</span>${h(v.label)}${n ? `<span class="badge">${n}</span>` : ''}</button>`; }).join('');
+}
+$('#sideNav').onclick = e => { const b = e.target.closest('button[data-view]'); if (b) go(b.dataset.view); };
+$('#menuBtn').onclick = () => { $('#side').classList.add('open'); $('#backdrop').classList.add('show'); };
+$('#backdrop').onclick = () => { $('#side').classList.remove('open'); $('#backdrop').classList.remove('show'); };
+function go(view, tab) {
+  S.view = view; const v = VIEWS.find(x => x.id === view); if (tab) S.tab[view] = tab; if (v.tabs && !S.tab[view]) S.tab[view] = v.tabs[0][0];
+  $('#side').classList.remove('open'); $('#backdrop').classList.remove('show');
+  $('#viewTitle').textContent = v.label; $('#topActions').innerHTML = ''; renderNav();
+  $('#tabs').innerHTML = v.tabs ? v.tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${S.tab[view] === k ? 'active' : ''}">${h(l)}</button>`).join('') : '';
+  try { history.replaceState(null, '', '#' + view + (v.tabs ? '/' + S.tab[view] : '')); } catch {}
+  render();
+}
+$('#tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) go(S.view, b.dataset.tab); };
+async function render() {
+  const view = $('#view'); view.innerHTML = '<p class="empty">Chargement…</p>';
+  try { await RENDER[S.view + (S.tab[S.view] ? ':' + S.tab[S.view] : '')]?.(view); } catch (e) { view.innerHTML = `<p class="warning">${h(e.message)}</p>`; }
+}
+const actions = html => { $('#topActions').innerHTML = html; };
+async function refreshDash() { try { S.dash = await api('/api/admin/dashboard'); renderNav(); } catch {} }
+
+const RENDER = {};
+
+/* ============ Tableau de bord ============ */
+RENDER.dashboard = async view => {
+  const [d, st, cat] = await Promise.all([api('/api/admin/dashboard'), api('/api/settings'), api('/api/admin/catalog')]); S.dash = d; S.settings = st; renderNav();
+  const warn = [];
+  if (!st.whatsapp && !st.phone) warn.push(['Coordonnées de l’entreprise non renseignées (WhatsApp, téléphone).', 'content', 'contact']);
+  if (!st.online_payment) warn.push(['Paiement en ligne PlopPlop non configuré : ajoutez PLOP_CLIENT_ID et PLOP_CLIENT_SECRET dans Render.', 'settings']);
+  if (!(st.hero_slides || []).length) warn.push(['Diaporama d’accueil vide : ajoutez vos photos et affiches.', 'content', 'slides']);
+  const noPhoto = cat.packages.filter(p => p.active !== false && !p.photo).length; if (noPhoto) warn.push([`${noPhoto} surprise(s) prête(s) sans photo.`, 'catalog', 'packages']);
+  const todo = [
+    [d.orders_pending, 'commande(s) à confirmer', 'orders'], [d.payments_to_check, 'paiement(s) à vérifier', 'orders'], [d.rentals_pending, 'location(s) à confirmer', 'rentals'],
+    [d.applications_new, 'nouvelle(s) candidature(s)', 'hr', 'recruit'], [d.to_price, 'élément(s) du catalogue à tarifer', 'catalog', 'elements']
+  ].filter(x => x[0]);
+  const max = Math.max(1, ...d.months.flatMap(x => [x.income, x.expense]));
+  view.innerHTML = `
+    <div class="kpis">
+      <div class="kpi accent"><small>Recettes du mois</small><strong>${money(d.month_income)}</strong></div>
+      <div class="kpi"><small>Dépenses du mois</small><strong>${money(d.month_expense)}</strong></div>
+      <div class="kpi ${d.month_result >= 0 ? 'good' : 'bad'}"><small>Résultat du mois</small><strong>${money(d.month_result)}</strong></div>
+      <div class="kpi"><small>Trésorerie (tous comptes)</small><strong>${money(d.cash_total)}</strong></div>
+      <div class="kpi"><small>À encaisser (commandes confirmées)</small><strong>${money(d.receivable)}</strong></div>
+      <div class="kpi"><small>Salaires à payer</small><strong>${money(d.payroll_due)}</strong></div>
+    </div>
+    ${warn.map(([t, v, tab]) => `<p class="warning">${h(t)} <a href="#" data-go="${v}" data-tab="${tab || ''}">Corriger →</a></p>`).join('')}
+    <div class="cards">
+      <div class="card"><h3>✅ À faire</h3>${todo.length ? `<ul class="todo">${todo.map(([n, t, v, tab]) => `<li><span class="badge">${n}</span><span>${h(t)}</span><button class="btn sm line" data-go="${v}" data-tab="${tab || ''}">Ouvrir</button></li>`).join('')}</ul>` : '<p class="empty">Rien d’urgent. 🎉</p>'}</div>
+      <div class="card"><h3>📅 Événements des 7 prochains jours</h3>${d.upcoming.length ? `<ul class="todo">${d.upcoming.map(o => `<li><span><b>${h(fmtDT(o.event_at))}</b><br>${h(o.package_name)} — ${h(o.recipient)} · ${h(o.city)}</span>${pill(o.payment_status)}</li>`).join('')}</ul>` : '<p class="empty">Aucun événement prévu.</p>'}</div>
+      <div class="card"><h3>📈 Recettes et dépenses (6 mois)</h3><div class="bars">${d.months.map(x => `<div class="bar"><div class="cols"><div class="in" style="height:${x.income / max * 100}%" title="Recettes ${money(x.income)}"></div><div class="out" style="height:${x.expense / max * 100}%" title="Dépenses ${money(x.expense)}"></div></div><small>${x.month.slice(5)}/${x.month.slice(2, 4)}</small></div>`).join('')}</div><div class="legend"><span><i style="background:#2aa866"></i>Recettes</span><span><i style="background:#d9577a"></i>Dépenses</span></div></div>
+    </div>`;
+};
+document.addEventListener('click', e => { const a = e.target.closest('[data-go]'); if (!a) return; e.preventDefault(); go(a.dataset.go, a.dataset.tab || undefined); });
+
+/* ============ Commandes ============ */
+const lineText = x => [x.name, (x.choices || []).length ? '(' + x.choices.map(c => c.option + (c.price ? ' +' + c.price : '')).join(', ') + ')' : '', x.quantity ? '× ' + x.quantity : '', x.note ? '« ' + x.note + ' »' : '', x.price ? '= ' + money(x.price) : ''].filter(Boolean).join(' ');
+RENDER.orders = async view => {
+  const [orders, st] = await Promise.all([api('/api/orders'), api('/api/settings')]); S.settings = st;
+  const f = S.orderFilter;
+  const groups = { open: ['pending', 'confirmed', 'preparing', 'in_progress'], pending: ['pending'], done: ['completed'], cancelled: ['cancelled'], all: null };
+  const list = orders.filter(o => (!groups[f.status] || groups[f.status].includes(o.status)) && (!f.pay || (f.pay === 'unpaid' ? o.payment_status !== 'paid' : o.payment_status === f.pay)) && (!f.q || JSON.stringify([o.package_name, o.recipient, o.city, o.contact, o.id]).toLowerCase().includes(f.q.toLowerCase())))
+    .sort((a, b) => (a.status === 'pending') - (b.status === 'pending') || 0).sort((a, b) => a.event_at.localeCompare(b.event_at));
+  view.innerHTML = `<div class="toolbar"><label class="grow">Rechercher<input id="oq" value="${h(f.q)}" placeholder="Nom, téléphone, ville, référence…"></label>
+    <label>Statut<select id="os">${[['open', 'En cours (à traiter)'], ['pending', 'À confirmer'], ['done', 'Terminées'], ['cancelled', 'Annulées'], ['all', 'Toutes']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label>Paiement<select id="op">${[['', 'Tous'], ['unpaid', 'Non payées'], ['pending_verification', 'À vérifier'], ['paid', 'Payées']].map(([v, l]) => `<option value="${v}" ${f.pay === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <p class="muted">${list.length} commande(s), triées par date d’événement.</p>
+    <div class="list">${list.map(o => { const c = o.contact || {}; return `<article class="item"><div class="item-head"><div class="grow"><strong>${h(o.package_name)} — ${h(o.recipient)}</strong> ${o.guest ? '<span class="pill">Sans compte</span>' : ''} ${o.lang === 'ht' ? '<span class="pill">Kreyòl</span>' : ''}
+      <p>📅 ${h(fmtDT(o.event_at))} · 📍 ${h(o.city)} (${h(c.department || '')}) · 👤 ${h(c.sender_name || '')} ${h(c.sender_phone || '')}</p></div>
+      <div style="text-align:right"><strong>${money(o.amount_due || o.total_htg)}</strong><br>${pill(o.status)} ${pill(o.payment_status)}</div></div>
+      <details><summary>Détails et suivi</summary>
+        <p><b>Contenu :</b> ${h((o.options || []).map(lineText).join(' ; ') || '—')}</p>
+        <p><b>Client :</b> ${h(c.sender_name)} · ${h(c.sender_phone)} · ${h(c.sender_email)}</p>
+        <p><b>Destinataire :</b> ${h(o.recipient)} · ${h(c.recipient_phone)}${c.alternate_phone ? ' · autre : ' + h(c.alternate_phone) : ''}</p>
+        <p><b>Adresse :</b> ${h(o.address)}${c.landmark ? ' · ' + h(c.landmark) : ''}</p>
+        ${o.message ? `<p><b>Carte :</b> « ${h(o.message)} » ${o.personalization?.sender ? '— ' + h(o.personalization.sender) : ''}</p>` : ''}
+        <p><b>Préférences :</b> ${h(Object.entries(o.personalization || {}).filter(x => x[1] && x[0] !== 'sender').map(x => x.join(' : ')).join(' · ') || '—')}</p>
+        <p><b>Paiement :</b> ${h(o.payment_reference || '—')} ${(o.payments || []).length ? `· ${o.payments.length} tentative(s) en ligne` : ''} · Magic Live : ${o.live_requested ? 'demandé' : 'non'} · Réf. ${h(o.id.slice(0, 8))}</p>
+        <div class="controls">
+          <label>Statut<select data-k="status">${['pending', 'confirmed', 'preparing', 'in_progress', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === o.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
+          <label>Paiement<select data-k="payment_status">${['unpaid', 'pending_verification', 'paid', 'refunded'].map(v => `<option value="${v}" ${v === o.payment_status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
+          <label>Montant à payer<input data-k="amount_due" type="number" min="1" placeholder="${o.total_htg}" value="${o.amount_due || ''}"></label>
+          <label>Lien Magic Live<input data-k="live_url" placeholder="https://…" value="${h(o.live_url || '')}"></label>
+        </div>
+        <div class="form-actions"><button class="btn primary sm save-order" data-id="${o.id}">Enregistrer</button>
+          ${st.online_payment && o.pay_token ? `<button class="btn line sm copy-link" data-link="${h(location.origin + '/#payer=' + o.id + '.' + o.pay_token)}">Copier le lien de paiement</button>` : ''}
+          ${c.sender_phone ? `<a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/${h(c.sender_phone.replace(/\D/g, '').replace(/^(\d{8})$/, '509$1'))}">WhatsApp client</a>` : ''}
+          ${o.payment_status === 'paid' ? `<button class="btn line sm receipt" data-id="${o.id}">Reçu</button>` : ''}</div>
+      </details></article>`; }).join('') || '<p class="empty">Aucune commande pour ce filtre.</p>'}</div>`;
+  const upd = () => { f.q = $('#oq').value; f.status = $('#os').value; f.pay = $('#op').value; RENDER.orders(view).then(() => $('#oq').focus()); };
+  $('#os').onchange = upd; $('#op').onchange = upd; let tm; $('#oq').oninput = () => { clearTimeout(tm); tm = setTimeout(upd, 350); };
+  view.querySelectorAll('.save-order').forEach(b => b.onclick = safe(async () => {
+    const box = b.closest('.item'), v = k => box.querySelector(`[data-k="${k}"]`).value.trim();
+    if (v('payment_status') === 'paid' && !confirm('Confirmez avoir vérifié le montant et la transaction.')) return;
+    await post('/api/admin/orders/' + b.dataset.id, { status: v('status'), payment_status: v('payment_status'), amount_due: Number(v('amount_due')) || null, live_url: v('live_url') || null }, 'PATCH');
+    toast('Commande mise à jour'); refreshDash(); RENDER.orders(view);
+  }));
+};
+document.addEventListener('click', safe(async e => {
+  const c = e.target.closest('.copy-link'); if (c) { try { await navigator.clipboard.writeText(c.dataset.link); toast('Lien copié : collez-le dans WhatsApp.'); } catch { prompt('Lien de paiement', c.dataset.link); } return; }
+  const r = e.target.closest('.receipt'); if (r) {
+    const w = window.open('', '_blank'); const x = await api('/api/receipt/' + r.dataset.id);
+    w.document.body.innerHTML = `<h1>Magic Moments — Reçu</h1><p>${h(x.number)}</p><p>Client : ${h(x.customer)}</p><p>Prestation : ${h(x.package)}</p><p>Contenu : ${h(x.options.map(lineText).join(' ; '))}</p><h2>Montant encaissé : ${money(x.total)}</h2><p>Date : ${h(fmtDT(x.date))}</p><p>Transaction : ${h(x.reference || 'Validation administrative')}</p>`; w.print();
+  }
+}));
+
+/* ============ Locations ============ */
+RENDER.rentals = async view => {
+  const rentals = await api('/api/rentals');
+  view.innerHTML = rentals.length ? `<table class="table"><thead><tr><th>Matériel</th><th>Quantité</th><th>Ville</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>${rentals.map(r => `<tr><td data-l="Matériel"><b>${h(r.equipment_name)}</b></td><td data-l="Quantité">${r.quantity}</td><td data-l="Ville">${h(r.city)}</td><td data-l="Période">${h(fmtDT(r.start_at))} → ${h(fmtDT(r.end_at))}</td>
+    <td data-l="Statut"><select data-rid="${r.id}">${['pending', 'confirmed', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === r.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></td><td><button class="btn sm primary save-rental" data-id="${r.id}">OK</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune demande de location.</p>';
+  view.querySelectorAll('.save-rental').forEach(b => b.onclick = safe(async () => { await post('/api/admin/rentals/' + b.dataset.id, { status: view.querySelector(`[data-rid="${b.dataset.id}"]`).value }, 'PATCH'); toast('Location mise à jour'); refreshDash(); }));
+};
+
+/* ============ Catalogue ============ */
+const statusPill = x => x.needs_price ? '<span class="pill warn">À tarifer</span>' : x.active === false ? '<span class="pill grey">Inactif</span>' : '<span class="pill ok">Actif</span>';
+const visual = (photo, emoji = '🎁') => photo ? `<img class="mini-img" src="/media/${h(photo)}" alt="">` : `<span class="mini-img">${h(emoji)}</span>`;
+let gallery = [];
+RENDER['catalog:packages'] = async view => {
+  const [cat, gal] = await Promise.all([api('/api/admin/catalog'), api('/api/gallery')]); gallery = gal;
+  actions('<button class="btn primary" id="newPkg">＋ Nouvelle surprise prête</button>'); $('#newPkg').onclick = () => packageForm(null, cat.categories);
+  view.innerHTML = `<table class="table"><thead><tr><th></th><th>Surprise</th><th>Catégorie</th><th class="num">Prix de départ</th><th>Kreyòl</th><th>Statut</th></tr></thead><tbody>${cat.packages.map(p => `<tr class="clickable" data-id="${p.id}"><td>${visual(p.photo, p.image)}</td><td data-l="Surprise"><b>${h(p.name)}</b><br><span class="muted">${h((p.photos || []).length + (p.photo ? 1 : 0))} photo(s)</span></td><td data-l="Catégorie">${h(p.category)}</td><td class="num" data-l="Prix">${p.needs_price ? '—' : money(p.price_htg)}</td><td data-l="Kreyòl">${p.name_ht ? '✓' : '<span class="pill warn">à traduire</span>'}</td><td>${statusPill(p)}</td></tr>`).join('')}</tbody></table>`;
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => packageForm(cat.packages.find(p => p.id === tr.dataset.id), cat.categories));
+};
+function packageForm(p, categories) {
+  const media = { photo: p?.photo || '', photos: [...(p?.photos || [])] };
+  const fields = [
+    [{ name: 'name', label: 'Nom', required: true }, { name: 'category', label: 'Catégorie', type: 'select', options: categories.map(c => [c, c]) }],
+    { name: 'description', label: 'Description', type: 'textarea', rows: 2 },
+    [{ name: 'price_htg', label: 'Prix de départ (HTG)', type: 'number', min: 1, required: true }, { name: 'guests', label: 'Invités / format', placeholder: 'Ex. Jusqu’à 20 invités' }, { name: 'lead_time', label: 'Délai pour commander', placeholder: 'Ex. 48 h à l’avance' }],
+    { name: 'includes', label: 'Ce qui est inclus (une ligne par élément)', type: 'textarea', lines: true, placeholder: 'Exemple : Gâteau 8 parts' },
+    { name: 'options', label: 'Options payantes (une par ligne : nom | prix HTG)', type: 'textarea', rows: 2, placeholder: 'Exemple : Bouquet de roses | 2500' },
+    { name: 'active', label: 'Visible par les clients', type: 'checkbox', checked: true }
+  ];
+  const ht = [{ name: 'name_ht', label: 'Nom (kreyòl)' }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 2 }, { name: 'includes_ht', label: 'Inclus (kreyòl, une ligne par élément)', type: 'textarea', lines: true }, [{ name: 'guests_ht', label: 'Invités (kreyòl)' }, { name: 'lead_time_ht', label: 'Délai (kreyòl)' }]];
+  const values = p ? { ...p, price_htg: p.needs_price ? '' : p.price_htg, active: p.active !== false || !!p.needs_price, options: (p.options || []).map(x => x.name + ' | ' + x.price).join('\n'), includes: (p.includes || []).join('\n'), includes_ht: (p.includes_ht || []).join('\n') } : { active: true };
+  openForm({
+    title: p ? 'Modifier : ' + p.name : 'Nouvelle surprise prête', fields: [...fields, ...ht], values,
+    extra: `<div class="section-box"><b>Photos</b><label>Photo vignette (carte)<input type="file" id="pThumb" accept="image/*"></label><div class="thumbs" id="pThumbs"></div><label>Autres photos (plusieurs possibles, 12 maximum)<input type="file" id="pPhotos" accept="image/*" multiple></label><div class="thumbs" id="pPhotosList"></div></div>`,
+    onRender: form => {
+      const draw = () => { $('#pThumbs').innerHTML = media.photo ? thumbHTML(media.photo, 'thumb') : '<span class="muted">Aucune vignette.</span>'; $('#pPhotosList').innerHTML = media.photos.map((x, i) => thumbHTML(x, i)).join(''); };
+      draw();
+      $('#pThumbs').onclick = e => { if (e.target.dataset.rm) { media.photo = ''; draw(); } };
+      $('#pPhotosList').onclick = e => { const i = e.target.dataset.rm; if (i !== undefined) { media.photos.splice(Number(i), 1); draw(); } };
+      $('#pThumb').onchange = safe(async e => { const f = e.target.files[0]; if (!f) return; toast('Envoi…'); media.photo = await uploadImage(f); draw(); toast('Vignette ajoutée'); });
+      $('#pPhotos').onchange = safe(async e => { for (const f of [...e.target.files].slice(0, 12 - media.photos.length)) { toast('Envoi des photos…'); media.photos.push(await uploadImage(f)); draw(); } toast('Photos ajoutées'); });
+      // Les champs kreyòl sont regroupés dans une section repliable.
+      const first = form.elements.name_ht.closest('label'); const box = document.createElement('details'); box.className = 'section-box'; box.innerHTML = '<summary><b>Version kreyòl</b></summary>';
+      first.before(box); for (const n of ['name_ht', 'description_ht', 'includes_ht']) box.append(form.elements[n].closest('label')); box.append(form.elements.guests_ht.closest('.grid2'));
+    },
+    onSubmit: async v => {
+      const options = (v.options || '').split('\n').map(x => x.trim()).filter(Boolean).map(x => { const [name, price] = x.split('|'); return { name: name.trim(), price: Number((price || '').trim()) }; });
+      await post('/api/admin/packages', { ...v, id: p?.id, options, price_htg: v.price_htg, photo: media.photo, photos: media.photos });
+      toast('Surprise enregistrée'); refreshDash(); render();
+    }
+  });
+}
+
+RENDER['catalog:elements'] = async view => {
+  const els = await api('/api/admin/elements');
+  actions('<button class="btn primary" id="newEl">＋ Nouvel élément</button>'); $('#newEl').onclick = () => elementForm(null, els);
+  const dims = [...new Set(els.map(e => e.category))];
+  view.innerHTML = `<p class="muted">Les éléments que le client assemble dans « Créer une surprise », classés par dimension. Chaque option peut ajouter un supplément au prix de base.</p>` + dims.map(d => `<h3 style="margin:18px 0 8px">${h(d)}</h3><table class="table"><thead><tr><th></th><th>Élément</th><th class="num">Prix de base</th><th>Choix</th><th>Statut</th></tr></thead><tbody>${els.filter(e => e.category === d).map(e => `<tr class="clickable" data-id="${e.id}"><td>${visual(e.photo, '✦')}</td><td data-l="Élément"><b>${h(e.name)}</b>${e.name_ht ? '' : ' <span class="pill warn">kreyòl</span>'}</td><td class="num" data-l="Prix">${e.needs_price ? '—' : money(e.price)}</td><td data-l="Choix">${h((e.groups || []).map(g => g.name + ' (' + g.options.length + ')').join(', ') || '—')}</td><td>${statusPill(e)}</td></tr>`).join('')}</tbody></table>`).join('');
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => elementForm(els.find(e => e.id === tr.dataset.id), els));
+};
+function elementForm(x, els) {
+  const media = { photo: x?.photo || '' }, dims = [...new Set(els.map(e => e.category))];
+  const fields = [
+    [{ name: 'name', label: 'Nom', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }],
+    [{ name: 'category', label: 'Dimension', required: true, placeholder: 'Ex. Pâtisserie' }, { name: 'category_ht', label: 'Dimension (kreyòl)', placeholder: 'Ex. Patisri' }],
+    [{ name: 'description', label: 'Description', type: 'textarea', rows: 2 }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 2 }],
+    { name: 'price', label: 'Prix de base (HTG) — 0 si le prix dépend entièrement des options', type: 'number', min: 0, required: true },
+    { name: 'active', label: 'Disponible pour les clients', type: 'checkbox', checked: true }
+  ];
+  const group = (g = { name: '', name_ht: '', type: 'single', required: true, options: [] }) => `<div class="group-block" data-gid="${h(g.id || '')}"><div class="grid2"><label>Nom du choix<input class="g-name" value="${h(g.name)}" placeholder="Ex. Taille"></label><label>Nom (kreyòl)<input class="g-name-ht" value="${h(g.name_ht || '')}" placeholder="Ex. Gwosè"></label></div>
+    <div class="grid2"><label>Type<select class="g-type"><option value="single" ${g.type === 'single' ? 'selected' : ''}>Un seul choix</option><option value="multi" ${g.type === 'multi' ? 'selected' : ''}>Plusieurs choix possibles</option></select></label><label class="check" style="margin-top:24px"><input type="checkbox" class="g-req" ${g.required ? 'checked' : ''}> Obligatoire</label></div>
+    <label>Options — une par ligne : Nom | Nom kreyòl | Supplément HTG<textarea class="g-opts" rows="4" placeholder="Exemple : Grand | Gwo | 3000">${h(g.options.map(o => [o.name, o.name_ht || '', o.price].join(' | ')).join('\n'))}</textarea></label><button type="button" class="btn sm danger g-del">Supprimer ce choix</button></div>`;
+  openForm({
+    title: x ? 'Modifier : ' + x.name : 'Nouvel élément', fields, values: x ? { ...x, price: x.needs_price ? '' : x.price, active: x.active !== false || !!x.needs_price } : { active: true },
+    extra: `<datalist id="dimList">${dims.map(d => `<option value="${h(d)}">`).join('')}</datalist><div class="section-box"><b>Photo</b><input type="file" id="eFile" accept="image/*"><div class="thumbs" id="eThumb"></div></div><div class="section-box"><b>Choix proposés au client (taille, saveur, couleur, extras…)</b><div id="groups">${(x?.groups || []).map(group).join('')}</div><button type="button" class="btn line" id="addG">＋ Ajouter un choix</button></div>`,
+    onRender: form => {
+      form.elements.category.setAttribute('list', 'dimList');
+      const draw = () => { $('#eThumb').innerHTML = media.photo ? thumbHTML(media.photo, 'e') : '<span class="muted">Aucune photo.</span>'; }; draw();
+      $('#eThumb').onclick = e => { if (e.target.dataset.rm) { media.photo = ''; draw(); } };
+      $('#eFile').onchange = safe(async e => { const f = e.target.files[0]; if (f) { toast('Envoi…'); media.photo = await uploadImage(f); draw(); toast('Photo ajoutée'); } });
+      $('#addG').onclick = () => $('#groups').insertAdjacentHTML('beforeend', group());
+      $('#groups').onclick = e => { if (e.target.closest('.g-del')) e.target.closest('.group-block').remove(); };
+    },
+    onSubmit: async v => {
+      const groups = $$('#groups .group-block').map(d => ({ id: d.dataset.gid || undefined, name: d.querySelector('.g-name').value.trim(), name_ht: d.querySelector('.g-name-ht').value.trim(), type: d.querySelector('.g-type').value, required: d.querySelector('.g-req').checked,
+        options: d.querySelector('.g-opts').value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(s => s.trim()), last = p[p.length - 1], hasPrice = p.length > 1 && /^\d+$/.test(last); return { name: p[0], name_ht: p.length === 3 || (p.length === 2 && !hasPrice) ? p[1] : '', price: hasPrice ? Number(last) : 0 }; }) }));
+      await post('/api/admin/elements', { ...v, id: x?.id, photo: media.photo, groups }); toast('Élément enregistré'); refreshDash(); render();
+    }
+  });
+}
+
+RENDER['catalog:categories'] = async view => {
+  const cats = await api('/api/categories?full=1');
+  actions('<button class="btn primary" id="newCat">＋ Nouvelle catégorie</button>');
+  const form = c => openForm({ title: c ? 'Catégorie : ' + c.name : 'Nouvelle catégorie', fields: [[{ name: 'name', label: 'Nom (français)', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }]], values: c || {}, onRender: f => { if (c) f.elements.name.readOnly = true; }, onSubmit: async v => { await post('/api/admin/categories', { ...v, translate: !!c }); toast('Catégorie enregistrée'); render(); } });
+  $('#newCat').onclick = () => form(null);
+  view.innerHTML = `<table class="table"><thead><tr><th>Catégorie</th><th>Kreyòl</th></tr></thead><tbody>${cats.map(c => `<tr class="clickable" data-n="${h(c.name)}"><td><b>${h(c.name)}</b></td><td>${h(c.name_ht) || '<span class="pill warn">à traduire</span>'}</td></tr>`).join('')}</tbody></table>`;
+  view.querySelectorAll('tr[data-n]').forEach(tr => tr.onclick = () => form(cats.find(c => c.name === tr.dataset.n)));
+};
+
+RENDER['catalog:equipment'] = async view => {
+  const eq = await api('/api/admin/equipment');
+  actions('<button class="btn primary" id="newEq">＋ Nouveau matériel</button>');
+  const form = x => openForm({ title: x ? x.name : 'Nouveau matériel', fields: [[{ name: 'name', label: 'Nom', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }], [{ name: 'stock', label: 'Stock disponible', type: 'number', min: 0, required: true }, { name: 'daily_price_htg', label: 'Prix par jour (HTG)', type: 'number', min: 1, required: true }], { name: 'active', label: 'Proposé à la location', type: 'checkbox', checked: true }],
+    values: x ? { ...x, daily_price_htg: x.needs_price ? '' : x.daily_price_htg, active: x.active !== false || !!x.needs_price } : { active: true }, onSubmit: async v => { await post('/api/admin/equipment', { ...v, id: x?.id }); toast('Matériel enregistré'); refreshDash(); render(); } });
+  $('#newEq').onclick = () => form(null);
+  view.innerHTML = `<table class="table"><thead><tr><th>Matériel</th><th class="num">Stock</th><th class="num">Prix / jour</th><th>Statut</th></tr></thead><tbody>${eq.map(x => `<tr class="clickable" data-id="${x.id}"><td><b>${h(x.name)}</b></td><td class="num" data-l="Stock">${x.stock}</td><td class="num" data-l="Prix">${x.needs_price ? '—' : money(x.daily_price_htg)}</td><td>${statusPill(x)}</td></tr>`).join('')}</tbody></table>`;
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(eq.find(x => x.id === tr.dataset.id)));
+};
+
+/* ============ Site et contenu ============ */
+const CONTACT_FIELDS = [
+  [{ name: 'whatsapp', label: 'WhatsApp', type: 'tel', placeholder: '+509 …' }, { name: 'phone', label: 'Téléphone', type: 'tel' }, { name: 'email', label: 'Courriel', type: 'email' }],
+  { name: 'address', label: 'Adresse' },
+  [{ name: 'zone', label: 'Zone desservie', placeholder: 'Ex. Saint-Marc, Port-au-Prince et environs' }, { name: 'zone_ht', label: 'Zone desservie (kreyòl)' }],
+  [{ name: 'hours', label: 'Horaires', placeholder: 'Ex. Lundi à samedi, 8 h à 18 h' }, { name: 'hours_ht', label: 'Horaires (kreyòl)' }],
+  [{ name: 'facebook', label: 'Facebook (https://…)' }, { name: 'instagram', label: 'Instagram (https://…)' }, { name: 'tiktok', label: 'TikTok (https://…)' }],
+  { name: 'payments', label: 'Moyens de paiement affichés (séparés par des virgules)', placeholder: 'MonCash, NatCash, Espèces' },
+  [{ name: 'about', label: 'Présentation courte', type: 'textarea', rows: 2 }, { name: 'about_ht', label: 'Présentation courte (kreyòl)', type: 'textarea', rows: 2 }]
+];
+RENDER['content:contact'] = async view => {
+  const st = await api('/api/settings'); S.settings = st;
+  view.innerHTML = `<form class="card" id="cform">${CONTACT_FIELDS.map(f => field(f, st)).join('')}<div class="form-actions"><button class="btn primary">Enregistrer les coordonnées</button></div></form>`;
+  $('#cform').onsubmit = safe(async e => { e.preventDefault(); const v = readForm(e.target, CONTACT_FIELDS); await post('/api/admin/settings', { ...v, hero_media: st.hero_media || '' }); toast('Coordonnées enregistrées'); });
+};
+
+RENDER['content:slides'] = async view => {
+  const st = await api('/api/settings'); let slides = [...(st.hero_slides || [])];
+  const draw = () => {
+    view.innerHTML = `<div class="card"><h3>Diaporama de l’accueil <span class="muted" style="font-weight:500">— photos et affiches qui défilent sur la page d’accueil (10 maximum)</span></h3>
+      <label>Ajouter des images (plusieurs possibles)<input type="file" id="sFiles" accept="image/*" multiple></label>
+      ${slides.map((s, i) => `<div class="slide-row" data-i="${i}"><span class="thumb wide"><img src="/media/${h(s.media)}" alt=""></span><div class="grid2"><label>Légende (facultatif)<input class="s-cap" value="${h(s.caption)}" maxlength="140"></label><label>Légende (kreyòl)<input class="s-cap-ht" value="${h(s.caption_ht)}" maxlength="140"></label></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="btn sm line" data-mv="-1">↑</button><button type="button" class="btn sm line" data-mv="1">↓</button><button type="button" class="btn sm danger" data-del>Retirer</button></div></div>`).join('') || '<p class="empty">Aucune image : le logo s’affiche à l’accueil.</p>'}
+      <div class="form-actions"><button class="btn primary" id="sSave">Enregistrer le diaporama</button></div></div>`;
+    const sync = () => $$('.slide-row').forEach(r => { const s = slides[r.dataset.i]; s.caption = r.querySelector('.s-cap').value; s.caption_ht = r.querySelector('.s-cap-ht').value; });
+    view.querySelectorAll('.slide-row').forEach(r => r.onclick = e => { const i = Number(r.dataset.i); if (e.target.dataset.mv) { sync(); const j = i + Number(e.target.dataset.mv); if (j >= 0 && j < slides.length) { [slides[i], slides[j]] = [slides[j], slides[i]]; draw(); } } if (e.target.hasAttribute('data-del')) { sync(); slides.splice(i, 1); draw(); } });
+    $('#sFiles').onchange = safe(async e => { sync(); for (const f of [...e.target.files].slice(0, 10 - slides.length)) { toast('Envoi des images…'); slides.push({ media: await uploadImage(f, 'hero'), caption: '', caption_ht: '' }); } draw(); toast('Images ajoutées — cliquez sur « Enregistrer le diaporama »'); });
+    $('#sSave').onclick = safe(async () => { sync(); slides = await post('/api/admin/slides', { slides }); toast('Diaporama enregistré'); draw(); });
+  };
+  draw();
+};
+
+RENDER['content:announcements'] = async view => {
+  const list = await api('/api/admin/announcements');
+  actions('<button class="btn primary" id="newAnn">＋ Nouvelle annonce</button>');
+  const form = a => openForm({ title: a ? 'Modifier l’annonce' : 'Nouvelle annonce', remove: a && (async () => { await post('/api/admin/announcements/remove', { id: a.id }); toast('Annonce supprimée'); render(); }),
+    fields: [{ name: 'text', label: 'Texte de l’annonce (240 caractères maximum)', type: 'textarea', rows: 2, required: true }, { name: 'text_ht', label: 'Texte en kreyòl', type: 'textarea', rows: 2 }, { name: 'link', label: 'Lien (facultatif)', placeholder: '#catalogue ou https://…', hint: 'Sections du site : #catalogue, #commander, #location, #contact' }, [{ name: 'start', label: 'Afficher à partir du', type: 'date' }, { name: 'end', label: 'Jusqu’au', type: 'date' }], { name: 'active', label: 'Annonce active', type: 'checkbox', checked: true }],
+    values: a || { active: true }, onSubmit: async v => { await post('/api/admin/announcements', { ...v, id: a?.id }); toast('Annonce enregistrée'); render(); } });
+  $('#newAnn').onclick = () => form(null);
+  const d = today(), state = a => !a.active ? ['Désactivée', 'grey'] : a.end && a.end < d ? ['Terminée', 'grey'] : a.start && a.start > d ? ['Programmée', 'warn'] : ['En ligne', 'ok'];
+  view.innerHTML = `<p class="muted">Les annonces en ligne défilent dans une bande sous le menu du site, en français ou en kreyòl selon la langue du visiteur.</p>` + (list.length ? `<table class="table"><thead><tr><th>Annonce</th><th>Période</th><th>Statut</th></tr></thead><tbody>${list.map(a => `<tr class="clickable" data-id="${a.id}"><td><b>${h(a.text)}</b>${a.text_ht ? '' : ' <span class="pill warn">kreyòl</span>'}</td><td data-l="Période">${a.start ? h(fmtDate(a.start)) : '—'} → ${a.end ? h(fmtDate(a.end)) : '—'}</td><td><span class="pill ${state(a)[1]}">${state(a)[0]}</span></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune annonce.</p>');
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(list.find(a => a.id === tr.dataset.id)));
+};
+
+RENDER['content:gallery'] = async view => {
+  const gal = await api('/api/gallery');
+  actions('<button class="btn primary" id="newMedia">＋ Publier une réalisation</button>');
+  $('#newMedia').onclick = () => openForm({ title: 'Publier une réalisation', fields: [{ name: 'title', label: 'Titre', required: true }, { name: 'consent', label: 'Autorisations de publication obtenues (personnes visibles)', type: 'checkbox' }], extra: '<label>Photo ou vidéo (20 Mo maximum)<input type="file" id="gFile" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" required></label>',
+    onSubmit: async v => { const file = $('#gFile').files[0]; if (!file) throw Error('Choisissez un fichier'); if (file.size > 20e6) throw Error('20 Mo maximum'); const isImg = file.type.startsWith('image/'); await post('/api/admin/gallery', { title: v.title, consent: v.consent, mime: isImg ? 'image/jpeg' : file.type, data: isImg ? await resizeImage(file, 2000) : await readBase64(file) }); toast('Réalisation publiée'); render(); } });
+  view.innerHTML = gal.length ? `<div class="cards">${gal.map(g => `<div class="card">${g.mime.startsWith('video/') ? `<video src="/media/${h(g.id)}" controls preload="metadata" style="width:100%;border-radius:10px"></video>` : `<img src="/media/${h(g.id)}" alt="" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:10px">`}<p><b>${h(g.title)}</b></p><button class="btn sm danger rm-media" data-id="${g.id}">Retirer</button></div>`).join('')}</div>` : '<p class="empty">Aucune réalisation publiée.</p>';
+  view.querySelectorAll('.rm-media').forEach(b => b.onclick = safe(async () => { if (!confirm('Retirer ce média ?')) return; await post('/api/admin/gallery/remove', { id: b.dataset.id }); toast('Média retiré'); render(); }));
+};
+
+RENDER['content:testimonials'] = async view => {
+  const list = await api('/api/testimonials');
+  actions('<button class="btn primary" id="newT">＋ Ajouter un témoignage</button>');
+  $('#newT').onclick = () => openForm({ title: 'Témoignage client', before: '<p class="hint">Uniquement des avis réels, avec l’accord du client.</p>', fields: [[{ name: 'name', label: 'Nom affiché', required: true, placeholder: 'Ex. Nadège P.' }, { name: 'city', label: 'Ville' }, { name: 'occasion', label: 'Occasion' }], { name: 'text', label: 'Témoignage', type: 'textarea', required: true }], onSubmit: async v => { await post('/api/admin/testimonials', v); toast('Témoignage ajouté'); render(); } });
+  view.innerHTML = list.length ? `<div class="list">${list.map(t => `<div class="item"><div class="item-head"><div class="grow"><strong>${h(t.name)}</strong> <span class="muted">${h([t.occasion, t.city].filter(Boolean).join(', '))}</span><p>« ${h(t.text)} »</p></div><button class="btn sm danger rm-t" data-id="${t.id}">Retirer</button></div></div>`).join('')}</div>` : '<p class="empty">Aucun témoignage : la section « Avis » est masquée sur le site.</p>';
+  view.querySelectorAll('.rm-t').forEach(b => b.onclick = safe(async () => { if (!confirm('Retirer ce témoignage ?')) return; await post('/api/admin/testimonials/remove', { id: b.dataset.id }); render(); }));
+};
+
+/* ============ Ressources humaines ============ */
+const APP_LABELS = { new: 'Nouvelle', shortlisted: 'Présélectionnée', interview: 'Entretien', hired: 'Embauchée', rejected: 'Refusée' };
+const APP_PILL = { new: 'warn', shortlisted: '', interview: '', hired: 'ok', rejected: 'grey' };
+let HR = null, ACCOUNTS = [];
+const loadHR = async () => (HR = await api('/api/admin/hr'));
+const loadAccounts = async () => { if (!ACCOUNTS.length) ACCOUNTS = (await api('/api/admin/accounting')).accounts; return ACCOUNTS; };
+const accountOptions = () => ACCOUNTS.map(a => [a.id, a.name]);
+
+RENDER['hr:recruit'] = async view => {
+  await loadHR();
+  actions('<button class="btn primary" id="newJob">＋ Nouvelle offre d’emploi</button>'); $('#newJob').onclick = () => jobForm(null);
+  const f = S.appFilter ||= { job: '', status: '' };
+  const apps = HR.applications.filter(a => (!f.job || a.job_id === f.job) && (!f.status || a.status === f.status));
+  view.innerHTML = `<div class="card" style="margin-bottom:16px"><h3>📢 Offres d’emploi <span class="muted" style="font-weight:500">— publiées dans « Carrières » sur le site</span></h3>${HR.jobs.length ? `<table class="table"><thead><tr><th>Poste</th><th>Type</th><th>Date limite</th><th>Candidatures</th><th>Statut</th></tr></thead><tbody>${HR.jobs.map(j => `<tr class="clickable" data-job="${j.id}"><td><b>${h(j.title)}</b><br><span class="muted">${h(j.location)}</span></td><td data-l="Type">${h(j.type)}</td><td data-l="Date limite">${h(fmtDate(j.deadline))}</td><td data-l="Candidatures">${HR.applications.filter(a => a.job_id === j.id).length}</td><td>${j.status === 'open' ? '<span class="pill ok">Ouverte</span>' : '<span class="pill grey">Fermée</span>'}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune offre.</p>'}</div>
+    <div class="toolbar"><label>Offre<select id="fJob"><option value="">Toutes</option>${HR.jobs.map(j => `<option value="${j.id}" ${f.job === j.id ? 'selected' : ''}>${h(j.title)}</option>`).join('')}</select></label><label>Statut<select id="fSt"><option value="">Tous</option>${Object.entries(APP_LABELS).map(([k, l]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <div class="list">${apps.map(a => `<div class="item"><div class="item-head"><div class="grow"><strong>${h(a.name)}</strong> <span class="pill ${APP_PILL[a.status]}">${APP_LABELS[a.status]}</span><p>${h(a.job_title)} · reçue le ${h(fmtDate(a.created_at))}</p><p>📞 ${h(a.phone)} · ✉️ ${h(a.email)}</p></div>${a.cv ? `<a class="btn sm line" href="/api/admin/files/${a.cv}">📄 CV</a>` : ''}</div>
+      ${a.message ? `<details><summary>Message du candidat</summary><p>${h(a.message)}</p></details>` : ''}
+      <div class="controls"><label>Statut<select class="a-st">${Object.entries(APP_LABELS).map(([k, l]) => `<option value="${k}" ${k === a.status ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label style="grid-column:span 2">Notes internes<input class="a-notes" value="${h(a.notes)}"></label></div>
+      <div class="form-actions"><button class="btn sm primary a-save" data-id="${a.id}">Enregistrer</button>${a.status !== 'hired' ? `<button class="btn sm gold a-hire" data-id="${a.id}">Embaucher → fiche du personnel</button>` : ''}<a class="btn sm line" target="_blank" rel="noopener" href="https://wa.me/${h(a.phone.replace(/\D/g, '').replace(/^(\d{8})$/, '509$1'))}">WhatsApp</a></div></div>`).join('') || '<p class="empty">Aucune candidature.</p>'}</div>`;
+  view.querySelectorAll('tr[data-job]').forEach(tr => tr.onclick = () => jobForm(HR.jobs.find(j => j.id === tr.dataset.job)));
+  $('#fJob').onchange = () => { f.job = $('#fJob').value; render(); }; $('#fSt').onchange = () => { f.status = $('#fSt').value; render(); };
+  view.querySelectorAll('.a-save').forEach(b => b.onclick = safe(async () => { const box = b.closest('.item'); await post('/api/admin/applications/update', { id: b.dataset.id, status: box.querySelector('.a-st').value, notes: box.querySelector('.a-notes').value }); toast('Candidature mise à jour'); refreshDash(); render(); }));
+  view.querySelectorAll('.a-hire').forEach(b => b.onclick = () => { const a = HR.applications.find(x => x.id === b.dataset.id); employeeForm(null, { name: a.name, phone: a.phone, email: a.email, role: a.job_title, hire_date: today(), status: 'active', contract: 'CDI', pay_type: 'monthly', from_application: a.id }); });
+};
+function jobForm(j) {
+  openForm({ title: j ? 'Offre : ' + j.title : 'Nouvelle offre d’emploi', remove: j && (async () => { await post('/api/admin/jobs/remove', { id: j.id }); toast('Offre supprimée'); render(); }),
+    fields: [[{ name: 'title', label: 'Intitulé du poste', required: true }, { name: 'title_ht', label: 'Intitulé (kreyòl)' }], [{ name: 'type', label: 'Type', type: 'select', options: HR.job_types.map(x => [x, x]) }, { name: 'location', label: 'Lieu', placeholder: 'Ex. Saint-Marc' }, { name: 'department', label: 'Service', placeholder: 'Ex. Décoration' }],
+      { name: 'description', label: 'Description du poste', type: 'textarea', rows: 4, required: true }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 3 },
+      [{ name: 'requirements', label: 'Profil recherché', type: 'textarea' }, { name: 'requirements_ht', label: 'Profil (kreyòl)', type: 'textarea' }],
+      [{ name: 'salary', label: 'Rémunération (facultatif)', placeholder: 'Ex. À discuter' }, { name: 'deadline', label: 'Date limite', type: 'date' }, { name: 'status', label: 'Statut', type: 'select', options: [['open', 'Ouverte (publiée)'], ['closed', 'Fermée']] }]],
+    values: j || { status: 'open', type: 'Temps plein' }, onSubmit: async v => { await post('/api/admin/jobs', { ...v, id: j?.id }); toast('Offre enregistrée'); render(); } });
+}
+
+RENDER['hr:staff'] = async view => {
+  await loadHR(); await loadAccounts();
+  actions('<button class="btn primary" id="newEmp">＋ Nouvel employé</button>'); $('#newEmp').onclick = () => employeeForm(null);
+  const act = HR.employees.filter(e => e.status === 'active'), mass = act.reduce((a, e) => a + (e.pay_type === 'daily' ? e.salary * 26 : e.salary), 0);
+  view.innerHTML = `<div class="kpis"><div class="kpi accent"><small>Employés actifs</small><strong>${act.length}</strong></div><div class="kpi"><small>Masse salariale mensuelle estimée</small><strong>${money(mass)}</strong></div><div class="kpi"><small>Avances non remboursées</small><strong>${money(HR.advances.filter(a => !a.settled_in).reduce((x, a) => x + a.amount, 0))}</strong></div></div>
+    ${HR.employees.length ? `<table class="table"><thead><tr><th>Nom</th><th>Poste</th><th>Contrat</th><th class="num">Salaire</th><th>Paiement</th><th>Statut</th><th></th></tr></thead><tbody>${HR.employees.map(e => `<tr><td data-l="Nom"><b>${h(e.name)}</b><br><span class="muted">${h(e.phone)}</span></td><td data-l="Poste">${h(e.role)}${e.department ? '<br><span class="muted">' + h(e.department) + '</span>' : ''}</td><td data-l="Contrat">${h(e.contract)}<br><span class="muted">depuis ${h(fmtDate(e.hire_date))}</span></td><td class="num" data-l="Salaire">${money(e.salary)}${e.pay_type === 'daily' ? ' / jour' : ' / mois'}</td><td data-l="Paiement">${h(e.pay_method || '—')}</td><td>${e.status === 'active' ? '<span class="pill ok">Actif</span>' : '<span class="pill grey">Sorti</span>'}</td><td><button class="btn sm line e-edit" data-id="${e.id}">Fiche</button> <button class="btn sm line e-adv" data-id="${e.id}">Avance</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucun employé enregistré.</p>'}`;
+  view.querySelectorAll('.e-edit').forEach(b => b.onclick = () => employeeForm(HR.employees.find(e => e.id === b.dataset.id)));
+  view.querySelectorAll('.e-adv').forEach(b => b.onclick = () => advanceForm(HR.employees.find(e => e.id === b.dataset.id)));
+};
+function employeeForm(e, preset = {}) {
+  openForm({ title: e ? 'Fiche : ' + e.name : 'Nouvel employé',
+    fields: [[{ name: 'name', label: 'Nom complet', required: true }, { name: 'role', label: 'Poste', required: true }, { name: 'department', label: 'Service' }],
+      [{ name: 'phone', label: 'Téléphone', type: 'tel', required: true }, { name: 'email', label: 'Courriel', type: 'email' }, { name: 'emergency', label: 'Contact d’urgence' }], { name: 'address', label: 'Adresse' },
+      [{ name: 'contract', label: 'Contrat', type: 'select', options: HR.contracts.map(x => [x, x]) }, { name: 'hire_date', label: 'Date d’embauche', type: 'date', required: true }, { name: 'end_date', label: 'Date de fin (si connue)', type: 'date' }],
+      [{ name: 'pay_type', label: 'Rémunération', type: 'select', options: [['monthly', 'Salaire mensuel'], ['daily', 'Taux journalier']] }, { name: 'salary', label: 'Montant (HTG)', type: 'number', min: 1, required: true }, { name: 'status', label: 'Statut', type: 'select', options: [['active', 'Actif'], ['inactive', 'Sorti / inactif']] }],
+      [{ name: 'pay_method', label: 'Mode de paiement', type: 'select', options: [['MonCash', 'MonCash'], ['NatCash', 'NatCash'], ['Espèces', 'Espèces'], ['Virement bancaire', 'Virement bancaire'], ['Chèque', 'Chèque']] }, { name: 'pay_account', label: 'Numéro MonCash / NatCash ou banque' }],
+      { name: 'notes', label: 'Notes (compétences, observations…)', type: 'textarea', rows: 2 }],
+    values: e || { contract: 'CDI', pay_type: 'monthly', status: 'active', hire_date: today(), ...preset },
+    onSubmit: async v => { await post('/api/admin/employees', { ...v, id: e?.id, from_application: preset.from_application }); toast('Fiche enregistrée'); refreshDash(); if (S.view === 'hr' && S.tab.hr !== 'staff') go('hr', 'staff'); else render(); } });
+}
+function advanceForm(e) {
+  openForm({ title: 'Avance sur salaire — ' + e.name, before: '<p class="hint">L’avance est enregistrée en dépense et déduite automatiquement de la prochaine fiche de paie.</p>',
+    fields: [[{ name: 'amount', label: 'Montant (HTG)', type: 'number', min: 1, required: true }, { name: 'date', label: 'Date', type: 'date', required: true }, { name: 'account', label: 'Payée depuis', type: 'select', options: accountOptions() }], { name: 'note', label: 'Motif' }],
+    values: { date: today(), account: 'caisse' }, onSubmit: async v => { await post('/api/admin/advances', { ...v, employee_id: e.id }); toast('Avance enregistrée'); render(); } });
+}
+
+RENDER['hr:payroll'] = async view => {
+  await loadHR(); await loadAccounts();
+  S.payPeriod ||= today().slice(0, 7);
+  const slips = HR.payroll.filter(s => s.period === S.payPeriod), tot = k => slips.reduce((a, s) => a + s[k], 0);
+  actions(`<label style="margin:0">Mois<input type="month" id="pPer" value="${S.payPeriod}"></label><button class="btn primary" id="pGen">Préparer la paie du mois</button>`);
+  $('#pPer').onchange = () => { S.payPeriod = $('#pPer').value; render(); };
+  $('#pGen').onclick = safe(async () => { const r = await post('/api/admin/payroll/generate', { period: S.payPeriod }); toast(r.created ? r.created + ' fiche(s) de paie préparée(s)' : 'Toutes les fiches de ce mois existent déjà'); refreshDash(); render(); });
+  view.innerHTML = `<div class="kpis"><div class="kpi"><small>Brut du mois</small><strong>${money(tot('gross'))}</strong></div><div class="kpi"><small>Avances déduites</small><strong>${money(tot('advances'))}</strong></div><div class="kpi accent"><small>Net à verser</small><strong>${money(tot('net'))}</strong></div><div class="kpi ${slips.some(s => s.status === 'draft') ? 'bad' : 'good'}"><small>Restant à payer</small><strong>${money(slips.filter(s => s.status === 'draft').reduce((a, s) => a + s.net, 0))}</strong></div></div>
+    ${slips.length ? `<table class="table"><thead><tr><th>Employé</th><th class="num">Base</th><th class="num">Primes</th><th class="num">Retenues</th><th class="num">Avances</th><th class="num">Net</th><th>Statut</th><th></th></tr></thead><tbody>${slips.map(s => `<tr><td data-l="Employé"><b>${h(s.name)}</b><br><span class="muted">${h(s.role)}${s.pay_type === 'daily' ? ' · ' + s.days + ' jour(s)' : ''}</span></td><td class="num" data-l="Base">${money(s.base)}</td><td class="num" data-l="Primes">${money(s.bonus)}</td><td class="num" data-l="Retenues">${money(s.deductions)}</td><td class="num" data-l="Avances">${money(s.advances)}</td><td class="num" data-l="Net"><b>${money(s.net)}</b></td><td>${s.status === 'paid' ? `<span class="pill ok">Payé ${h(fmtDate(s.paid_at))}</span>` : '<span class="pill warn">À payer</span>'}</td><td><button class="btn sm line s-open" data-id="${s.id}">${s.status === 'paid' ? 'Fiche' : 'Ajuster / payer'}</button></td></tr>`).join('')}</tbody></table>` : `<p class="empty">Aucune fiche pour ${h(S.payPeriod)}. Cliquez sur « Préparer la paie du mois » : une fiche est créée pour chaque employé actif, avec déduction des avances.</p>`}
+    <div class="card" style="margin-top:16px"><h3>💵 Avances récentes</h3>${HR.advances.length ? `<table class="table"><thead><tr><th>Employé</th><th>Date</th><th class="num">Montant</th><th>Motif</th><th>Statut</th></tr></thead><tbody>${HR.advances.slice(0, 15).map(a => `<tr><td>${h(a.name)}</td><td data-l="Date">${h(fmtDate(a.date))}</td><td class="num" data-l="Montant">${money(a.amount)}</td><td data-l="Motif">${h(a.note || '—')}</td><td>${a.settled_in ? '<span class="pill ok">Déduite</span>' : '<span class="pill warn">À déduire</span>'}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune avance. Elles se saisissent depuis l’onglet Personnel.</p>'}</div>`;
+  view.querySelectorAll('.s-open').forEach(b => b.onclick = () => slipForm(HR.payroll.find(s => s.id === b.dataset.id)));
+};
+function printSlip(s) {
+  const e = HR.employees.find(x => x.id === s.employee_id) || {}, acc = ACCOUNTS.find(a => a.id === s.account)?.name || '';
+  const w = window.open('', '_blank'); if (!w) return toast('Autorisez les fenêtres contextuelles');
+  w.document.body.innerHTML = `<div style="font-family:Arial,sans-serif;max-width:640px;margin:auto"><h2>Magic Moments — Fiche de paie</h2><p><b>Période :</b> ${h(s.period)}<br><b>Employé :</b> ${h(s.name)} — ${h(s.role)}<br><b>Contrat :</b> ${h(e.contract || '')} · embauché le ${h(fmtDate(e.hire_date))}</p>
+    <table style="width:100%;border-collapse:collapse" border="1" cellpadding="8"><tr><td>Salaire de base${s.pay_type === 'daily' ? ` (${s.days} jours × ${money(s.rate)})` : ''}</td><td align="right">${money(s.base)}</td></tr><tr><td>Primes</td><td align="right">${money(s.bonus)}</td></tr><tr><td><b>Brut</b></td><td align="right"><b>${money(s.gross)}</b></td></tr><tr><td>Retenues</td><td align="right">− ${money(s.deductions)}</td></tr><tr><td>Avances déduites</td><td align="right">− ${money(s.advances)}</td></tr><tr><td><b>Net versé</b></td><td align="right"><b>${money(s.net)}</b></td></tr></table>
+    <p>${s.status === 'paid' ? `Payé le ${h(fmtDate(s.paid_at))} · ${h(acc)} ${s.reference ? '· réf. ' + h(s.reference) : ''}` : 'Non encore payé'}</p>${s.note ? `<p>Note : ${h(s.note)}</p>` : ''}<p style="margin-top:50px">Signature de l’employé : ______________________</p></div>`;
+  w.print();
+}
+function slipForm(s) {
+  if (s.status === 'paid') return printSlip(s);
+  openForm({ title: `Paie ${s.period} — ${s.name}`, before: `<p class="hint">Base : ${money(s.base)}${s.pay_type === 'daily' ? ` (${money(s.rate)} par jour)` : ''} · Avances à déduire : ${money(s.advances)}</p>`,
+    fields: [[...(s.pay_type === 'daily' ? [{ name: 'days', label: 'Jours travaillés', type: 'number', min: 0 }] : []), { name: 'bonus', label: 'Primes (HTG)', type: 'number', min: 0 }, { name: 'deductions', label: 'Retenues (HTG)', type: 'number', min: 0 }], { name: 'note', label: 'Note' }],
+    values: s, submit: 'Enregistrer les ajustements', remove: async () => { await post('/api/admin/payroll/remove', { id: s.id }); toast('Fiche supprimée'); render(); },
+    extra: `<div class="section-box"><b>Verser le salaire</b><div class="grid3"><label>Date<input type="date" id="payDate" value="${today()}"></label><label>Payé depuis<select id="payAcc">${accountOptions().map(([v, l]) => `<option value="${v}">${h(l)}</option>`).join('')}</select></label><label>Référence<input id="payRef" placeholder="N° transaction"></label></div><button type="button" class="btn gold" id="payNow">Enregistrer les ajustements et marquer payé</button> <button type="button" class="btn line" id="slipPrint">Aperçu de la fiche</button></div>`,
+    onRender: form => {
+      $('#slipPrint').onclick = () => printSlip(s);
+      $('#payNow').onclick = safe(async () => { const v = readForm(form, [{ name: 'days', type: 'number' }, { name: 'bonus', type: 'number' }, { name: 'deductions', type: 'number' }, { name: 'note' }]); await post('/api/admin/payroll/update', { id: s.id, days: v.days ?? 0, bonus: v.bonus || 0, deductions: v.deductions || 0, note: v.note }); const paid = await post('/api/admin/payroll/pay', { id: s.id, date: $('#payDate').value, account: $('#payAcc').value, reference: $('#payRef').value }); closeModal(); toast('Salaire payé et enregistré en comptabilité'); refreshDash(); await loadHR(); printSlip(paid); render(); });
+    },
+    onSubmit: async v => { await post('/api/admin/payroll/update', { id: s.id, days: v.days ?? 0, bonus: v.bonus || 0, deductions: v.deductions || 0, note: v.note }); toast('Fiche mise à jour'); render(); } });
+}
+
+/* ============ Comptabilité ============ */
+let ACC = null;
+async function loadAcc() { const { from, to } = S.period; ACC = await api(`/api/admin/accounting?from=${from}&to=${to}`); ACCOUNTS = ACC.accounts; return ACC; }
+function periodBar() {
+  const { from, to } = S.period, y = today().slice(0, 4), m = today().slice(0, 7), prev = new Date(); prev.setDate(1); prev.setMonth(prev.getMonth() - 1); const pm = prev.toISOString().slice(0, 7);
+  const lastDay = ym => new Date(Number(ym.slice(0, 4)), Number(ym.slice(5)), 0).getDate();
+  actions(`<label style="margin:0">Du<input type="date" id="aFrom" value="${from}"></label><label style="margin:0">Au<input type="date" id="aTo" value="${to}"></label>
+    <select id="aQuick" style="width:auto;margin-top:18px"><option value="">Période rapide…</option><option value="${m}-01|${today()}">Ce mois</option><option value="${pm}-01|${pm}-${lastDay(pm)}">Mois dernier</option><option value="${y}-01-01|${today()}">Cette année</option><option value="${Number(y) - 1}-01-01|${Number(y) - 1}-12-31">Année dernière</option></select>
+    <a class="btn line" style="margin-top:18px" href="/api/admin/accounting/export?from=${from}&to=${to}">⬇ Export Excel (CSV)</a>`);
+  const set = (f, t) => { S.period = { from: f, to: t }; render(); };
+  $('#aFrom').onchange = () => set($('#aFrom').value, $('#aTo').value); $('#aTo').onchange = () => set($('#aFrom').value, $('#aTo').value);
+  $('#aQuick').onchange = () => { const [f, t] = $('#aQuick').value.split('|'); if (f) set(f, t); };
+}
+RENDER['accounting:summary'] = async view => {
+  await loadAcc(); periodBar(); const a = ACC, max = Math.max(1, ...a.months.flatMap(x => [x.income, x.expense]));
+  view.innerHTML = `<div class="kpis"><div class="kpi accent"><small>Recettes de la période</small><strong>${money(a.income)}</strong></div><div class="kpi"><small>Dépenses de la période</small><strong>${money(a.expense)}</strong></div><div class="kpi ${a.result >= 0 ? 'good' : 'bad'}"><small>Résultat</small><strong>${money(a.result)}</strong></div><div class="kpi"><small>Trésorerie au ${h(fmtDate(a.to))}</small><strong>${money(a.cash_total)}</strong></div><div class="kpi"><small>Créances clients (à encaisser)</small><strong>${money(a.receivable)}</strong></div><div class="kpi"><small>Salaires à payer</small><strong>${money(a.payroll_due)}</strong></div></div>
+    <div class="cards"><div class="card"><h3>🏦 Soldes des comptes</h3><table class="table"><tbody>${a.accounts.map(x => `<tr><td>${h(x.name)}</td><td class="num ${x.balance < 0 ? 'amount-out' : ''}">${money(x.balance)}</td></tr>`).join('')}<tr><td><b>Total</b></td><td class="num"><b>${money(a.cash_total)}</b></td></tr></tbody></table></div>
+    <div class="card"><h3>📊 Par catégorie</h3>${a.categories.length ? `<table class="table"><tbody>${a.categories.map(c => `<tr><td>${h(c.category)}</td><td class="num ${c.type === 'income' ? 'amount-in' : 'amount-out'}">${c.type === 'income' ? '+' : '−'} ${money(c.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune écriture sur la période.</p>'}</div>
+    <div class="card"><h3>📈 12 derniers mois</h3><div class="bars">${a.months.map(x => `<div class="bar"><div class="cols"><div class="in" style="height:${x.income / max * 100}%" title="${money(x.income)}"></div><div class="out" style="height:${x.expense / max * 100}%" title="${money(x.expense)}"></div></div><small>${x.month.slice(5)}</small></div>`).join('')}</div><div class="legend"><span><i style="background:#2aa866"></i>Recettes</span><span><i style="background:#d9577a"></i>Dépenses</span></div></div></div>`;
+};
+RENDER['accounting:journal'] = async view => {
+  await loadAcc(); periodBar();
+  $('#topActions').insertAdjacentHTML('afterbegin', '<button class="btn primary" data-new="income" style="margin-top:18px">＋ Recette</button><button class="btn danger" data-new="expense" style="margin-top:18px">＋ Dépense</button><button class="btn line" data-new="transfer" style="margin-top:18px">⇄ Virement</button>');
+  $$('[data-new]').forEach(b => b.onclick = () => entryForm(null, b.dataset.new));
+  const f = S.jf ||= { type: '', account: '', q: '' }, name = Object.fromEntries(ACC.accounts.map(a => [a.id, a.name]));
+  const list = ACC.entries.filter(e => (!f.type || e.type === f.type) && (!f.account || e.account === f.account || e.to_account === f.account) && (!f.q || (e.label + e.category).toLowerCase().includes(f.q.toLowerCase())));
+  view.innerHTML = `<div class="toolbar"><label class="grow">Rechercher<input id="jq" value="${h(f.q)}" placeholder="Libellé, catégorie…"></label><label>Type<select id="jt"><option value="">Tous</option><option value="income" ${f.type === 'income' ? 'selected' : ''}>Recettes</option><option value="expense" ${f.type === 'expense' ? 'selected' : ''}>Dépenses</option><option value="transfer" ${f.type === 'transfer' ? 'selected' : ''}>Virements</option></select></label><label>Compte<select id="ja"><option value="">Tous</option>${ACC.accounts.map(a => `<option value="${a.id}" ${f.account === a.id ? 'selected' : ''}>${h(a.name)}</option>`).join('')}</select></label></div>
+    ${list.length ? `<table class="table"><thead><tr><th>Date</th><th>Libellé</th><th>Catégorie</th><th>Compte</th><th class="num">Montant</th></tr></thead><tbody>${list.map(e => `<tr class="clickable" data-id="${e.id}"><td data-l="Date">${h(fmtDate(e.date))}</td><td data-l="Libellé"><b>${h(e.label)}</b> ${e.auto ? '<span class="pill">auto</span>' : ''} ${e.attachment ? '📎' : ''}</td><td data-l="Catégorie">${h(e.type === 'transfer' ? 'Virement interne' : e.category)}</td><td data-l="Compte">${h(name[e.account])}${e.type === 'transfer' ? ' → ' + h(name[e.to_account]) : ''}</td><td class="num ${e.type === 'income' ? 'amount-in' : e.type === 'expense' ? 'amount-out' : ''}">${e.type === 'income' ? '+' : e.type === 'expense' ? '−' : ''} ${money(e.amount)}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune écriture sur la période. Les ventes payées et les salaires versés s’y ajoutent automatiquement.</p>'}`;
+  const upd = () => { f.q = $('#jq').value; f.type = $('#jt').value; f.account = $('#ja').value; render(); };
+  $('#jt').onchange = upd; $('#ja').onchange = upd; let tm; $('#jq').oninput = () => { clearTimeout(tm); tm = setTimeout(upd, 400); };
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => { const e = ACC.entries.find(x => x.id === tr.dataset.id); entryForm(e, e.type); });
+};
+function entryForm(e, type) {
+  const cats = type === 'income' ? ACC.income_categories : ACC.expense_categories, att = { id: e?.attachment || '' };
+  const fields = [[{ name: 'date', label: 'Date', type: 'date', required: true }, { name: 'amount', label: 'Montant (HTG)', type: 'number', min: 1, required: true }],
+    { name: 'label', label: 'Libellé', required: true, placeholder: type === 'expense' ? 'Ex. Achat de fleurs au marché' : type === 'income' ? 'Ex. Location de chaises — mariage Joseph' : 'Ex. Dépôt de la caisse à la banque' },
+    type === 'transfer' ? [{ name: 'account', label: 'Depuis le compte', type: 'select', options: accountOptions() }, { name: 'to_account', label: 'Vers le compte', type: 'select', options: accountOptions() }]
+      : [{ name: 'category', label: 'Catégorie', type: 'select', options: cats.map(c => [c, c]) }, { name: 'account', label: type === 'income' ? 'Encaissé sur' : 'Payé depuis', type: 'select', options: accountOptions() }]];
+  openForm({ title: (e ? 'Modifier — ' : '') + ({ income: 'Recette', expense: 'Dépense', transfer: 'Virement entre comptes' }[type]), fields, values: e || { date: today(), account: 'caisse', to_account: 'banque' },
+    before: e?.auto ? '<p class="hint">Écriture créée automatiquement (vente payée, salaire ou avance). Vous pouvez corriger le compte ou la date.</p>' : '',
+    extra: type === 'transfer' ? '' : `<div class="section-box"><b>Pièce justificative (facture, reçu — photo ou PDF)</b><input type="file" id="attFile" accept="image/*,application/pdf"><p id="attInfo" class="muted"></p></div>`,
+    remove: e && (async () => { await post('/api/admin/entries/remove', { id: e.id }); toast('Écriture supprimée'); render(); }),
+    onRender: () => { if (type === 'transfer') return; const info = () => { $('#attInfo').innerHTML = att.id ? `<a href="/api/admin/files/${att.id}">📎 Télécharger la pièce</a> · <a href="#" id="attRm">retirer</a>` : 'Aucune pièce jointe.'; const rm = $('#attRm'); if (rm) rm.onclick = ev => { ev.preventDefault(); att.id = ''; info(); }; }; info(); $('#attFile').onchange = safe(async ev => { const f = ev.target.files[0]; if (!f) return; toast('Envoi de la pièce…'); att.id = await uploadAttachment(f); info(); toast('Pièce jointe ajoutée'); }); },
+    onSubmit: async v => { await post('/api/admin/entries', { ...v, id: e?.id, type, attachment: att.id }); toast('Écriture enregistrée'); render(); } });
+}
+RENDER['accounting:accounts'] = async view => {
+  await loadAcc(); periodBar();
+  $('#topActions').insertAdjacentHTML('afterbegin', '<button class="btn primary" id="newAcc" style="margin-top:18px">＋ Nouveau compte</button>');
+  const form = a => openForm({ title: a ? a.name : 'Nouveau compte', before: '<p class="hint">Solde d’ouverture : le montant présent sur ce compte au démarrage de la comptabilité dans Magic Moments.</p>', fields: [[{ name: 'name', label: 'Nom du compte', required: true }, { name: 'opening', label: 'Solde d’ouverture (HTG)', type: 'number', required: true }]], values: a || { opening: 0 }, onSubmit: async v => { await post('/api/admin/accounts', { ...v, id: a?.id }); ACCOUNTS = []; toast('Compte enregistré'); render(); } });
+  $('#newAcc').onclick = () => form(null);
+  view.innerHTML = `<table class="table"><thead><tr><th>Compte</th><th class="num">Solde d’ouverture</th><th class="num">Solde au ${h(fmtDate(ACC.to))}</th></tr></thead><tbody>${ACC.accounts.map(a => `<tr class="clickable" data-id="${a.id}"><td><b>${h(a.name)}</b></td><td class="num" data-l="Ouverture">${money(a.opening)}</td><td class="num" data-l="Solde">${money(a.balance)}</td></tr>`).join('')}</tbody></table>`;
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(ACC.accounts.find(a => a.id === tr.dataset.id)));
+};
+
+/* ============ Paramètres ============ */
+RENDER.settings = async view => {
+  const [mail, st] = await Promise.all([api('/api/admin/mail'), api('/api/settings')]);
+  view.innerHTML = `<div class="cards"><div class="card"><h3>💳 Paiement en ligne PlopPlop</h3><p>${st.online_payment ? '<span class="pill ok">Actif</span> Les clients paient par MonCash, NatCash ou Kashpaw après confirmation de leur commande.' : '<span class="pill warn">Non configuré</span> Ajoutez PLOP_CLIENT_ID et PLOP_CLIENT_SECRET dans Render → Environment, puis redémarrez le service.'}</p></div>
+    <div class="card"><h3>✉️ Courriels</h3><p>${mail.configured ? '<span class="pill ok">Service configuré</span>' : '<span class="pill warn">Non configuré</span> Ajoutez RESEND_API_KEY, MAIL_FROM et PUBLIC_URL dans Render.'}</p><p class="muted">Alertes de nouvelles commandes, paiements et candidatures : variable ADMIN_NOTIFY_EMAIL.</p></div>
+    <div class="card"><h3>👤 Compte</h3><p>${h(S.user.name)} · ${h(S.user.email)}</p><p class="muted">Pour changer de mot de passe : « Mot de passe oublié ? » sur le site.</p></div></div>
+    <div class="card" style="margin-top:16px"><h3>Journal des 100 derniers courriels</h3><pre class="log">${h(mail.jobs.map(x => `${fmtDT(x.created_at)} · ${x.subject} → ${x.to} · ${{ pending: 'En attente', sent: 'Envoyé', failed: 'Échec' }[x.status]}${x.attempts > 1 ? ' (' + x.attempts + ' essais)' : ''}`).join('\n') || 'Aucun courriel.')}</pre></div>`;
+};
+
+/* ---------- Démarrage ---------- */
+$('#loginForm').onsubmit = safe(async e => { e.preventDefault(); const f = new FormData(e.target); const r = await post('/api/auth/login', { email: f.get('email'), password: f.get('password') }); if (r.user.role !== 'admin') throw Error('Ce compte n’a pas accès à l’administration'); start(r.user); });
+$('#logout').onclick = safe(async () => { await post('/api/auth/logout', {}); location.href = '/'; });
+function start(user) {
+  S.user = user; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');
+  const [v, t] = location.hash.slice(1).split('/'); go(VIEWS.some(x => x.id === v) ? v : 'dashboard', t); refreshDash();
+}
+(async () => { try { const { user } = await api('/api/me'); if (user.role !== 'admin') throw Error(); start(user); } catch { $('#login').classList.remove('hidden'); } })();

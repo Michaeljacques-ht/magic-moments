@@ -141,6 +141,15 @@ export const HT = {
   'Ajoutez au moins un élément pour composer votre surprise.': 'Ajoute omwen yon eleman pou konpoze sipriz ou.', 'Choisissez une surprise.': 'Chwazi yon sipriz.',
   'Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.': 'Eleman yo ap disponib byento. Chwazi yon sipriz ki pare oswa ekri nou.',
   'Le montant de la surprise doit être supérieur à zéro': 'Montan sipriz la dwe plis pase zewo', 'Surprise': 'Sipriz',
+  'Administration': 'Administrasyon', 'Mon espace': 'Espas mwen', 'Ouvrir le menu': 'Louvri meni an', 'Menu': 'Meni', 'Avis clients': 'Avi kliyan', 'Carrières': 'Travay', 'Mon espace et Magic Live': 'Espas mwen ak Magic Live',
+  '💼 Carrières — Nous recrutons': '💼 Travay — N ap anboche', 'Raccourcis': 'Rakousi', 'Surprises': 'Sipriz', 'Créer': 'Kreye', 'Compte': 'Kont', 'Annonces': 'Anons', '📹 Magic Live': '📹 Magic Live',
+  'Rejoignez l’équipe Magic Moments.': 'Vin travay nan ekip Magic Moments.', 'Jusqu’au {d}': 'Jiska {d}', 'Voir et postuler': 'Gade epi aplike', 'Profil recherché': 'Pwofil n ap chèche', 'Rémunération': 'Salè',
+  'Postuler': 'Aplike', 'Message (facultatif)': 'Mesaj (si w vle)', 'CV (PDF, Word ou photo, 6 Mo maximum)': 'CV (PDF, Word oswa foto, 6 Mo maksimòm)', 'Envoyer ma candidature': 'Voye aplikasyon mwen',
+  'Aucun poste ouvert pour le moment. Revenez bientôt !': 'Pa gen pòs ki louvri kounye a. Tounen byento !',
+  'Merci ! Votre candidature a bien été envoyée. Nous vous contacterons si votre profil est retenu.': 'Mèsi ! Nou resevwa aplikasyon ou. N ap kontakte w si pwofil ou koresponn.',
+  'Faire une demande de location →': 'Fè yon demann lokasyon →', 'Réserver': 'Rezève',
+  'Temps plein': 'Plen tan', 'Temps partiel': 'Mwatye tan', 'Contrat': 'Kontra', 'Stage': 'Estaj', 'Journalier': 'Pa jounen',
+  'Fichier trop volumineux (6 Mo maximum)': 'Fichye a twò lou (6 Mo maksimòm)', 'Ce poste n’est plus ouvert': 'Pòs sa a pa louvri ankò', 'Type de fichier non accepté': 'Kalite fichye sa a pa aksepte',
   '{n} photos': '{n} foto', 'Photo {i} / {n}': 'Foto {i} / {n}', 'Photos': 'Foto', 'Précédente': 'Anvan', 'Suivante': 'Apre'
 };
 
