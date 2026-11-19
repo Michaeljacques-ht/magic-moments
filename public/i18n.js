@@ -130,7 +130,18 @@ export const HT = {
   'La passerelle de paiement est indisponible. Réessayez dans un instant.': 'Sistèm peman an pa disponib. Eseye ankò nan yon ti moman.', 'Connexion requise': 'Ou dwe konekte',
   'Accès refusé': 'Ou pa gen aksè', 'Référence invalide': 'Referans lan pa bon', 'Paiement non confirmé': 'Peman an poko konfime', 'Matériel indisponible': 'Materyèl sa a pa disponib',
   'Location invalide': 'Lokasyon an pa bon', 'Stock insuffisant': 'Pa gen ase nan stòk', 'Endpoint introuvable': 'Nou pa jwenn sa w ap chèche a', 'Téléphone invalide': 'Telefòn lan pa bon',
-  'Maximum 20 Mo': 'Maksimòm 20 Mo'
+  'Maximum 20 Mo': 'Maksimòm 20 Mo',
+  'Nos surprises': 'Sipriz nou yo', 'Voir nos surprises ↗': 'Gade sipriz nou yo ↗', 'NOS SURPRISES': 'SIPRIZ NOU YO',
+  "Prix de départ en gourdes haïtiennes (HTG). Chaque surprise s'adapte à vos envies.": 'Pri depa an goud (HTG). Chak sipriz ka adapte selon sa ou vle.',
+  '1. Créez votre surprise': '1. Kreye sipriz ou', '✨ Je compose tout moi-même': '✨ M ap konpoze tout bagay mwen menm', '🎁 Je pars d’une surprise prête': '🎁 M ap pran yon sipriz ki pare',
+  'Composez librement : choisissez les éléments, puis leurs options. Le prix se met à jour à chaque choix.': 'Konpoze jan ou vle : chwazi eleman yo, epi opsyon yo. Pri a chanje chak fwa ou fè yon chwa.',
+  'Surprise prête': 'Sipriz ki pare', 'Tout': 'Tout', 'Ajouter': 'Ajoute', 'Ajouté ✓': 'Ajoute ✓', 'Retirer': 'Retire', 'obligatoire': 'obligatwa', 'facultatif': 'si w vle',
+  'plusieurs choix possibles': 'ou ka chwazi plizyè', 'Aucun': 'Okenn', 'inclus': 'ladan l', 'à partir de': 'apati', 'Sous-total': 'Sou-total', 'Votre surprise': 'Sipriz ou',
+  'Aucun élément choisi pour le moment.': 'Ou poko chwazi okenn eleman.', 'Faites un choix pour « {g} »': 'Fè yon chwa pou « {g} »', 'Diminuer': 'Diminye', 'Augmenter': 'Ogmante',
+  'Ajoutez au moins un élément pour composer votre surprise.': 'Ajoute omwen yon eleman pou konpoze sipriz ou.', 'Choisissez une surprise.': 'Chwazi yon sipriz.',
+  'Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.': 'Eleman yo ap disponib byento. Chwazi yon sipriz ki pare oswa ekri nou.',
+  'Le montant de la surprise doit être supérieur à zéro': 'Montan sipriz la dwe plis pase zewo', 'Surprise': 'Sipriz',
+  '{n} photos': '{n} foto', 'Photo {i} / {n}': 'Foto {i} / {n}', 'Photos': 'Foto', 'Précédente': 'Anvan', 'Suivante': 'Apre'
 };
 
 // Éléments dont le contenu contient du balisage (marqués data-i18n dans la page).

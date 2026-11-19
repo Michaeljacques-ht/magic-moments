@@ -19,7 +19,7 @@
     <a class="brand" href="#accueil"><span class="star">✦</span><span>Magic<br>Moments</span></a>
     <nav>
       <a href="#accueil">Accueil</a>
-      <a href="#catalogue">Nos formules</a>
+      <a href="#catalogue">Nos surprises</a>
       <a href="#commander">Créer une surprise</a>
       <a href="#location">Location</a>
       <a href="#gallery">Réalisations</a>
@@ -43,7 +43,7 @@
     <h1 data-i18n="hero">Créez des moments <em>magiques</em> et inoubliables.</h1>
     <p>Surprises livrées, décorations, cadeaux personnalisés et location de matériel en Haïti. Vous choisissez, nous nous occupons de tout.</p>
     <div class="actions">
-      <a class="btn btn-gold" href="#catalogue">Voir nos formules ↗</a>
+      <a class="btn btn-gold" href="#catalogue">Voir nos surprises ↗</a>
       <a class="btn btn-ghost custom-start" href="#commander">Composer ma surprise</a>
     </div>
     <div class="hero-pills"><span>✓ Demande sans création de compte</span><span>✓ Confirmation par notre équipe</span><a href="#live">▶ Magic Live privé</a></div>
@@ -69,9 +69,9 @@
 <section id="catalogue" class="section wrap">
   <div class="section-top">
     <div>
-      <div class="eyebrow dark">NOS FORMULES</div>
+      <div class="eyebrow dark">NOS SURPRISES</div>
       <h2>Un moment pour chaque occasion</h2>
-      <p>Prix de départ en gourdes haïtiennes (HTG). Chaque formule s'adapte à vos envies.</p>
+      <p>Prix de départ en gourdes haïtiennes (HTG). Chaque surprise s'adapte à vos envies.</p>
     </div>
     <select id="categoryFilter" aria-label="Filtrer par catégorie"><option value="">Toutes les catégories</option></select>
   </div>
@@ -100,12 +100,20 @@
       </ol>
 
       <fieldset class="step" data-step="1">
-        <legend>1. Choisissez votre surprise</legend>
-        <label>Formule<select name="package_id" id="packageSelect" required></select></label>
-        <div id="packageDetails" class="package-details hidden"></div>
-        <div id="elementBuilder" class="hidden"></div>
-        <div id="customOptions"></div>
-        <label id="quantityLabel">Nombre de surprises identiques<input name="quantity" type="number" value="1" min="1" max="100" required></label>
+        <legend>1. Créez votre surprise</legend>
+        <div class="mode-switch" role="group"><button type="button" data-mode="custom" class="active">✨ Je compose tout moi-même</button><button type="button" data-mode="ready">🎁 Je pars d’une surprise prête</button></div>
+        <div id="elementBuilder">
+          <p class="hint">Composez librement : choisissez les éléments, puis leurs options. Le prix se met à jour à chaque choix.</p>
+          <div id="dimTabs" class="dim-tabs" data-dyn></div>
+          <div id="elementList" data-dyn></div>
+          <div id="customSummary" class="summary" data-dyn></div>
+        </div>
+        <div id="readyBox" class="hidden">
+          <label>Surprise prête<select id="packageSelect"></select></label>
+          <div id="packageDetails" class="package-details hidden"></div>
+          <div id="customOptions"></div>
+          <label id="quantityLabel">Nombre de surprises identiques<input name="quantity" type="number" value="1" min="1" max="100" required></label>
+        </div>
       </fieldset>
 
       <fieldset class="step hidden" data-step="2">
@@ -200,17 +208,25 @@
       <label>Adresse<input name="address"></label><label>Zone desservie<input name="zone" placeholder="Ex. Saint-Marc, Port-au-Prince et environs"></label><label>Horaires<input name="hours" placeholder="Ex. Lundi à samedi, 8 h à 18 h"></label>
       <label>Facebook (lien https)<input name="facebook"></label><label>Instagram (lien https)<input name="instagram"></label><label>TikTok (lien https)<input name="tiktok"></label>
       <label>Moyens de paiement acceptés (séparés par virgules)<input name="payments"></label><label>Présentation courte<textarea name="about" rows="2"></textarea></label><label>Présentation courte (kreyòl)<textarea name="about_ht" rows="2"></textarea></label><div class="form-grid"><label>Horaires (kreyòl)<input name="hours_ht" placeholder="Ex. Lendi rive samdi, 8è rive 6è"></label><label>Zone desservie (kreyòl)<input name="zone_ht"></label></div>
-      <label>Photo d’accueil (image de la galerie)<select name="hero_media" class="gallery-image-select"></select></label>
+      <fieldset class="photo-box"><legend>Photo d’accueil</legend><input type="hidden" name="hero_media"><div id="heroPreview" class="thumbs"></div><label>Importer une photo<input type="file" id="heroFile" accept="image/jpeg,image/png,image/webp"></label><label>…ou choisir dans la galerie<select id="heroPick" class="gallery-image-select"></select></label></fieldset>
       <button class="btn btn-purple">Enregistrer les coordonnées</button></form>
-    <form class="panel" id="packageForm"><h3>Créer / modifier une formule</h3><label>Formule existante<select id="editPackage" name="id"></select></label><label>Nom<input name="name" required></label><label>Catégorie<select name="category"></select></label><label>Description<textarea name="description"></textarea></label><label>Prix de départ HTG<input type="number" name="price" min="1" required></label>
-      <label>Ce qui est inclus (une ligne par élément)<textarea name="includes" rows="3" placeholder="Gâteau 8 parts&#10;10 ballons&#10;Carte personnalisée"></textarea></label>
+    <form class="panel" id="packageForm"><h3>Surprises prêtes (« Nos surprises »)</h3><label>Surprise existante<select id="editPackage" name="id"></select></label><label>Nom<input name="name" required></label><label>Catégorie<select name="category"></select></label><label>Description<textarea name="description"></textarea></label><label>Prix de départ HTG<input type="number" name="price" min="1" required></label>
+      <label>Ce qui est inclus (une ligne par élément)<textarea name="includes" rows="3" placeholder="Exemple : Gâteau 8 parts (une ligne par élément)"></textarea></label>
       <div class="form-grid"><label>Invités / format<input name="guests" placeholder="Ex. Jusqu’à 20 invités"></label><label>Délai pour commander<input name="lead_time" placeholder="Ex. 48 h à l’avance"></label></div>
       <details class="kr"><summary>Version kreyòl de la formule</summary><label>Nom (kreyòl)<input name="name_ht"></label><label>Description (kreyòl)<textarea name="description_ht"></textarea></label><label>Ce qui est inclus (kreyòl, une ligne par élément)<textarea name="includes_ht" rows="3"></textarea></label><div class="form-grid"><label>Invités / format (kreyòl)<input name="guests_ht"></label><label>Délai (kreyòl)<input name="lead_time_ht"></label></div></details>
-      <label>Photo (image de la galerie)<select name="photo" class="gallery-image-select"></select></label>
+      <fieldset class="photo-box"><legend>Photos de la formule</legend><label>Photo vignette (affichée sur la carte)<input type="file" id="pkgThumbFile" accept="image/jpeg,image/png,image/webp"></label><div id="pkgThumbPreview" class="thumbs"></div><label>…ou choisir la vignette dans la galerie<select id="pkgGalleryPick" class="gallery-image-select"></select></label><label>Autres photos (vous pouvez en choisir plusieurs, 12 maximum)<input type="file" id="pkgPhotosFiles" accept="image/jpeg,image/png,image/webp" multiple></label><div id="pkgPhotosPreview" class="thumbs"></div></fieldset>
       <label>Options (une par ligne : nom | prix HTG)<textarea name="options" placeholder="Bouquet | 2500"></textarea></label><label><input type="checkbox" name="active" checked> Active</label><button class="btn btn-purple">Enregistrer</button></form>
     <form class="panel" id="equipmentForm"><h3>Matériel de location</h3><label>Modifier<select name="id" id="equipmentEdit"></select></label><label>Nom<input name="name" required></label><label>Nom (kreyòl)<input name="name_ht"></label><div class="form-grid"><label>Stock disponible<input name="stock" type="number" min="0" required></label><label>Prix par jour HTG<input name="daily_price_htg" type="number" min="1" required></label></div><label><input name="active" type="checkbox" checked> Proposé à la location</label><button class="btn btn-purple">Enregistrer le matériel</button></form>
     <form class="panel" id="categoryForm"><h3>Catégories</h3><label>Catégorie<select name="existing" id="categoryEdit"></select></label><label>Nom (français)<input name="name" required></label><label>Nom (kreyòl)<input name="name_ht"></label><button class="btn btn-purple">Enregistrer</button></form>
-    <form class="panel" id="elementForm"><h3>Articles sur mesure</h3><label>Modifier<select name="id" id="elementEdit"></select></label><label>Nom<input name="name" required></label><label>Catégorie<input name="category" required></label><label>Prix unitaire HTG<input name="price" type="number" min="1" required></label><label>Couleurs ou saveurs (séparées par virgules)<input name="colors"></label><label>Tailles (séparées par virgules)<input name="sizes"></label><details class="kr"><summary>Version kreyòl de l’article</summary><label>Nom (kreyòl)<input name="name_ht"></label><label>Catégorie (kreyòl)<input name="category_ht"></label><label>Couleurs ou saveurs (kreyòl, même ordre)<input name="colors_ht"></label><label>Tailles (kreyòl, même ordre)<input name="sizes_ht"></label></details><label><input name="active" type="checkbox" checked> Disponible</label><button class="btn btn-purple">Enregistrer l’article</button></form>
+    <form class="panel" id="elementForm"><h3>Éléments pour « Créer une surprise »</h3><p class="hint">Chaque élément appartient à une dimension (Pâtisserie, Fleurs, Cadeaux, Décoration, Services…). Ajoutez ses choix (taille, saveur, couleur…) : chaque option peut ajouter un supplément au prix de base. Le client voit le prix changer à chaque choix.</p>
+      <label>Élément<select name="id" id="elementEdit"></select></label>
+      <div class="form-grid"><label>Nom<input name="name" required></label><label>Nom (kreyòl)<input name="name_ht"></label></div>
+      <div class="form-grid"><label>Dimension<input name="category" required list="dimList" placeholder="Ex. Pâtisserie"></label><label>Dimension (kreyòl)<input name="category_ht" placeholder="Ex. Patisri"></label></div><datalist id="dimList"></datalist>
+      <label>Description<textarea name="description" rows="2"></textarea></label><label>Description (kreyòl)<textarea name="description_ht" rows="2"></textarea></label>
+      <label>Prix de base HTG (0 si le prix dépend entièrement des options)<input name="price" type="number" min="0" required></label>
+      <fieldset class="photo-box"><legend>Photo</legend><input type="file" id="elPhotoFile" accept="image/jpeg,image/png,image/webp"><div id="elPhotoPreview" class="thumbs"></div></fieldset>
+      <div id="groupsEditor"></div><button type="button" class="btn btn-outline-dark full" id="addGroup">＋ Ajouter un choix (taille, saveur, couleur…)</button>
+      <label class="check"><input name="active" type="checkbox" checked> Disponible pour les clients</label><button class="btn btn-purple">Enregistrer l’élément</button></form>
     <form class="panel" id="galleryForm"><h3>Publier une réalisation</h3><label>Titre<input name="title" required></label><label>Photo ou vidéo (20 Mo max)<input name="media" type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" required></label><label><input name="consent" type="checkbox" required> Autorisations de publication obtenues</label><button class="btn btn-purple">Publier</button></form>
     <form class="panel" id="testimonialForm"><h3>Ajouter un témoignage client</h3><p class="hint">Uniquement des avis réels, avec l’accord du client.</p><label>Nom affiché<input name="name" required placeholder="Ex. Nadège P."></label><div class="form-grid"><label>Ville<input name="city"></label><label>Occasion<input name="occasion"></label></div><label>Témoignage<textarea name="text" rows="3" required minlength="10"></textarea></label><button class="btn btn-purple">Ajouter</button><div id="adminTestimonials"></div></form>
   </div>
@@ -233,6 +249,7 @@
 <a id="waFloat" class="wa-float hidden" target="_blank" rel="noopener noreferrer" aria-label="Nous écrire sur WhatsApp"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.1-.3-.2-.5-.3Z"/></svg><span>WhatsApp</span></a>
 
 <div id="toast" class="toast hidden" role="status"></div>
+<div id="lightbox" class="lightbox hidden" role="dialog" aria-label="Photos"><button type="button" class="close lb-close" aria-label="Fermer">×</button><button type="button" class="lb-nav lb-prev" aria-label="Précédente">‹</button><figure><img id="lbImg" alt=""><figcaption id="lbCaption" data-dyn></figcaption></figure><button type="button" class="lb-nav lb-next" aria-label="Suivante">›</button></div>
 <div id="payModal" class="modal hidden"><div class="modal-content"><button type="button" id="closePay" class="close" aria-label="Fermer">×</button><h2>Paiement de votre commande</h2><div id="payInfo"></div><div id="payActions" class="pay-actions"></div><p class="hint">Paiement sécurisé par PlopPlop : MonCash, NatCash ou Kashpaw.</p></div></div>
 <div id="authModal" class="modal hidden"><div class="modal-content"><button id="closeModal" class="close" aria-label="Fermer">×</button><h2 id="modalTitle">Connexion</h2><p id="modalIntro">Accédez à votre espace Magic Moments.</p><form id="authForm"><label id="nameLabel" class="hidden">Nom complet<input name="name" placeholder="Votre nom" autocomplete="name"></label><label id="emailLabel">Courriel<input name="email" type="email" required autocomplete="email"></label><label id="passwordLabel">Mot de passe<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="current-password"></label><label id="confirmLabel" class="hidden">Confirmer le mot de passe<input name="confirm" type="password" minlength="8" maxlength="128" autocomplete="new-password"></label><button class="btn btn-purple full" id="authSubmit">Se connecter</button></form><button type="button" class="linkbtn" id="forgotAuth">Mot de passe oublié ?</button><br><button type="button" class="linkbtn" id="switchAuth">Créer un compte</button></div></div>
 

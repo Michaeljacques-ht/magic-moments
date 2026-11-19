@@ -64,3 +64,18 @@ Ajoutées automatiquement au premier démarrage (une seule fois, sans doublon, d
 4. La commande passe à « Payé » automatiquement après vérification auprès de la passerelle ; reçu envoyé au client et alerte à l’administrateur. Un paiement non vérifié au retour du client est rattrapé automatiquement toutes les 15 minutes.
 5. Bouton « Copier le lien de paiement client » sur chaque commande, pour l’envoyer par WhatsApp.
 Sans identifiants PlopPlop, le paiement manuel (lien + référence déclarée) reste actif.
+
+## V10 — Photos des formules et corrections
+- **Photos des formules** : dans « Créer / modifier une formule », importer une photo vignette (affichée sur la carte) et jusqu’à 12 autres photos, directement depuis l’ordinateur ou le téléphone. Les photos sont réduites automatiquement (1600 px, JPEG) avant l’envoi. Les visiteurs voient « 📷 n photos » sur la carte et parcourent les photos dans une visionneuse (flèches, clavier, glissement mobile). Penser à cliquer « Enregistrer » après l’import.
+- **Photo d’accueil** : importable directement dans « Coordonnées de l’entreprise » (plus besoin de passer par la galerie).
+- **En-tête** : les liens ne se coupent plus sur deux lignes ; sous 1180 px, le menu passe en bande défilante sous le logo.
+- Les textes d’exemple des champs sont en gris clair italique pour ne pas être confondus avec du contenu.
+- Ces photos ne sont pas publiées dans « Réalisations » ; la galerie reste réservée aux événements passés.
+
+## V11 — « Nos surprises » et configurateur « Créer une surprise »
+- « Nos formules » devient **« Nos surprises »** (menu, accueil, catalogue), en français et en kreyòl.
+- **Créer une surprise** : par défaut, le client compose tout lui-même. Il parcourt les éléments par dimension (Pâtisserie, Fleurs, Cadeaux, Décoration, Services… — onglets filtrables), clique « Ajouter », puis fait ses choix (taille, saveur, couleur, extras…), règle la quantité et ajoute une précision. Le sous-total de chaque élément, le récapitulatif « Votre surprise » et le montant total changent à chaque choix. Il peut aussi basculer sur « Je pars d’une surprise prête ».
+- Le serveur recalcule lui-même tous les prix à partir du catalogue : un prix envoyé par le navigateur est ignoré.
+- **Administration — « Éléments pour Créer une surprise »** : pour chaque élément, saisir le nom (+ kreyòl), la dimension (+ kreyòl), une description, le prix de base (0 possible), une photo, et autant de **choix** que nécessaire. Chaque choix : nom (+ kreyòl), type « un seul choix » ou « plusieurs choix possibles », obligatoire ou non, et ses options, une par ligne : `Nom | Nom kreyòl | Supplément HTG` (ex. `Grand | Gwo | 3000`).
+- Migration automatique : les anciennes couleurs/saveurs et tailles deviennent des choix « Couleur / saveur » et « Taille » avec un supplément à 0 HTG — **à ajuster** pour que le prix varie selon la taille.
+- La commande, le courriel, le reçu et le tableau de bord indiquent les choix du client et leurs suppléments.
