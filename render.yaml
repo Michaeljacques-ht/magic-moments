@@ -1,28 +1,10 @@
-databases:
-  - name: magic-moments-db
-    databaseName: magicmoments
-    user: magicmoments
-    plan: basic
 services:
   - type: web
     name: magic-moments
     runtime: node
-    plan: starter
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: node --check server.js
+    startCommand: node server.js
     healthCheckPath: /health
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATABASE_URL
-        fromDatabase:
-          name: magic-moments-db
-          property: connectionString
-      - key: JWT_SECRET
-        generateValue: true
-      - key: ADMIN_EMAIL
-        sync: false
-      - key: ADMIN_PASSWORD
-        sync: false
-      - key: PUBLIC_BASE_URL
-        sync: false
