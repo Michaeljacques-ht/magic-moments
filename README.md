@@ -114,3 +114,63 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 ## V15 — Nouveau logo et vignettes du matériel
 - **Logo** : nouveau logo « Magic Moments — Gestion événementielle ». En-tête du site et de la FAQ passés en blanc pour le mettre en valeur ; logo dans le menu téléphone, le pied de page, la page de connexion de l’administration (version complète) et le menu de l’administration (emblème « M »). Icônes de l’application installable, favicon et icône iPhone refaites avec l’emblème « M » ; écran de démarrage blanc. Fichiers : logo.png (complet, image de repli de l’accueil), logo-header.png, logo-mark.png, icon-192/512.png, apple-touch-icon.png, favicon.png.
 - **Matériel de location** : vignette (photo) importable dans Administration → Catalogue → Matériel de location ; affichée sur les cartes du site et dans la liste de l’administration.
+
+## Version 16 — Paiement des locations, courriels Brevo et suivi par étapes
+
+### Paiement en ligne des locations
+- Les locations ont maintenant leur statut de paiement, un **lien de paiement privé** (`/#payer-location=…`) et le bouton **« Payer maintenant »** dans l’espace client, via PlopPlop (MonCash, NatCash, Kashpaw).
+- Le paiement s’ouvre après confirmation par l’équipe ; le montant est l’estimation ou le **montant à payer** fixé par l’administrateur.
+- Paiement confirmé automatiquement (retour client + rattrapage toutes les 15 min), écriture comptable « Locations de matériel », remboursement géré.
+
+### Parcours en plusieurs étapes
+- **Surprises** : Demande reçue → Confirmée (à payer) → Paiement reçu → En préparation → En livraison → Livrée (ou Annulée).
+- **Locations** : Demande reçue → Confirmée (à payer) → Paiement reçu → Livrée et installée → Récupérée — terminée (ou Annulée).
+- Le client voit une **frise de suivi** sur chaque commande et location ; chaque courriel rappelle aussi où en est la demande.
+
+### Courriels automatiques à chaque étape (Brevo)
+- Un courriel part au client à chaque étape, dans sa langue (français ou kreyòl), avec les détails, le lien de paiement quand il faut payer et le reçu après paiement.
+- Textes modifiables dans **Administration → Paramètres → Messages par étape** (objet, courriel, WhatsApp, version kreyòl, activation par étape, retour au texte d’origine). Variables : `{client}`, `{objet}`, `{destinataire}`, `{date}`, `{fin}`, `{ville}`, `{adresse}`, `{montant}`, `{lien_paiement}`, `{ref}`, `{site}`, `{whatsapp}`.
+- Variables Render → Environment :
+  - `BREVO_API_KEY` : clé API Brevo (SMTP & API → Clés API).
+  - `MAIL_FROM` : adresse d’expédition **validée dans Brevo**, ex. `Magic Moments <contact@votredomaine.com>`.
+  - `MAIL_FROM_NAME` (facultatif) : nom affiché, par défaut « Magic Moments ».
+  - `PUBLIC_URL` : adresse du site (liens dans les courriels).
+- Si `BREVO_API_KEY` est absent, Resend (`RESEND_API_KEY`) reste utilisable.
+
+### Messages WhatsApp pré-enregistrés
+- Dans chaque commande ou location : bouton **« 💬 Étapes et WhatsApp »** → frise des étapes et message prêt pour chaque étape, avec boutons **WhatsApp client**, **WhatsApp destinataire** (livraison des surprises, sans dévoiler la surprise) et **Copier**.
+- Le formulaire de location demande désormais un numéro WhatsApp pour le suivi.
+
+## Version 17 — Acompte, moyens de paiement et playlist YouTube
+
+### Acompte dès la demande
+- À l’envoi du formulaire (surprise ou location), le client peut payer tout de suite un **acompte** (60 % par défaut) pour réserver sa date ou bloquer le matériel. Une case cochée par défaut l’y invite et la fenêtre de paiement s’ouvre juste après l’envoi.
+- Le client peut aussi payer la totalité. Le **solde** se règle après confirmation par l’équipe (bouton « Payer le solde » dans l’espace client, lien envoyé par courriel et WhatsApp).
+- Suivi précis : montant total, déjà payé, reste à payer ; statut « Acompte payé ». Chaque versement a son écriture comptable (Acompte / Solde) et son reçu par courriel ; nouveau message « Acompte reçu » dans Messages par étape (variables `{acompte}`, `{total}`, `{deja_paye}`, `{reste}`).
+
+### Moyens de paiement (Paramètres → Moyens de paiement)
+- **Acompte** : activé ou non, pourcentage réglable (10 à 100 %).
+- **Paiement en ligne PlopPlop** (MonCash, NatCash, Kashpaw, confirmation automatique) : activable.
+- **Transfert direct** sur vos comptes MonCash, NatCash, bancaires ou autres (numéro, titulaire, banque, consigne) : le client envoie l’argent, déclare le numéro de transaction et peut joindre une capture ; l’équipe clique sur **« Confirmer la réception »** ou « Refuser » dans la fiche.
+- **Espèces à la livraison** : indiqué aux clients ; l’équipe enregistre l’encaissement avec **« Encaisser un montant »** (espèces, MonCash, NatCash, banque).
+
+### Musiques importées depuis YouTube
+- Catalogue → **Musiques (YouTube)** : collez un ou plusieurs liens YouTube, choisissez une catégorie ; titre et artiste sont récupérés automatiquement (modifiables), musique masquable ou supprimable.
+- Dans le formulaire de commande, le client ouvre **« Choisir dans notre playlist »**, écoute un extrait et choisit la musique de sa surprise (ou écrit un autre titre). L’administration voit la musique choisie avec un lien d’écoute.
+- Rien n’est téléchargé : la musique reste sur YouTube (lecture intégrée via youtube-nocookie.com).
+
+## Version 18 — Plus besoin de compte client (suivi façon Konekte)
+
+- **Commandes et locations sans compte** : le client donne son nom, son téléphone / WhatsApp et, de préférence, son courriel. Chaque demande reçoit une **référence** (MM-XXXXXXXX pour une surprise, LOC-XXXXXXXX pour une location), affichée à l’envoi et rappelée dans chaque courriel.
+- **Suivre ma commande** (bouton du menu, raccourci « Suivi » en bas de l’écran) :
+  1. **Référence + téléphone** : l’étape, le paiement, le bouton pour payer (acompte, totalité ou solde) et le reçu s’affichent tout de suite.
+  2. **Téléphone ou courriel** : un **code à 6 chiffres** part par courriel ; une fois saisi, le client retrouve toutes ses commandes et locations (session de 30 jours sur cet appareil, bouton « Se déconnecter »).
+  3. **Cet appareil se souvient** des demandes envoyées depuis lui (bouton « Oublier cet appareil »).
+- Les courriels contiennent un **lien de suivi direct** (`/#suivre=…`) qui ouvre la demande sans rien saisir ; variable `{lien_suivi}` disponible pour les messages WhatsApp.
+- **Reçus** consultables et imprimables sans compte, avec le détail des versements (acompte, solde).
+- Les anciens comptes clients continuent de fonctionner (leurs demandes apparaissent aussi via leur courriel) ; seule l’équipe se connecte, depuis `/admin`.
+- Les codes de connexion partent en priorité dans la file des courriels.
+
+### V18.1
+- Titres réduits (accueil et sections) pour une lecture plus confortable sur ordinateur et téléphone.
+- V18.2 : mentions « Demande sans création de compte » et « Confirmation par notre équipe » retirées de l’accueil.

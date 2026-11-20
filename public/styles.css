@@ -330,3 +330,63 @@ footer .logo-badge{margin-bottom:6px}
 .equipment-item.has-photo{padding-top:0;overflow:hidden}
 .eq-img{display:block;width:calc(100% + 44px);margin:0 -22px 12px;height:150px;object-fit:cover;background:#f3ecf7}
 @media(min-width:901px){.logo-img{height:66px}}
+
+/* V16 — suivi par étapes */
+.stepper{display:flex;list-style:none;margin:10px 0 6px;padding:0;gap:0;overflow-x:auto}
+.stepper li{flex:1 1 0;min-width:50px;position:relative;text-align:center;font-size:.72rem;color:#8a7f99}
+.stepper li::before{content:"";position:absolute;top:13px;left:-50%;width:100%;height:3px;background:#e7e0ef;z-index:0}
+.stepper li:first-child::before{display:none}
+.stepper li span{position:relative;z-index:1;display:grid;place-items:center;width:28px;height:28px;margin:0 auto 4px;border-radius:50%;background:#fff;border:2px solid #e7e0ef;font-weight:700;font-size:.78rem}
+.stepper li.done span{background:var(--purple);border-color:var(--purple);color:#fff}
+.stepper li.done::before,.stepper li.now::before{background:var(--purple)}
+.stepper li.now span{border-color:var(--gold);background:#fff7e0;color:var(--purple);box-shadow:0 0 0 4px rgba(226,179,60,.2)}
+.stepper li.now small{color:#2b2140;font-weight:700}
+.stepper small{display:block;line-height:1.2}
+.status.cancelled{background:#eee;color:#777}
+.order>div{min-width:0;flex:1}@media(max-width:650px){.stepper small{font-size:.64rem}}
+
+/* V17 — acompte, moyens de paiement, playlist */
+.deposit-box{background:#fff7e0;border:1px solid #f6dc9c;border-radius:12px;padding:10px 12px;margin-top:12px;font-weight:600;color:#4c3653}
+.pay-parts{display:grid;gap:8px}
+.pay-part{display:flex!important;align-items:center;gap:10px;border:2px solid var(--line);border-radius:12px;padding:10px 12px!important;margin:0!important;cursor:pointer}
+.pay-part input{width:auto;margin:0}.pay-part span{flex:1}.pay-part b{color:var(--purple);font-size:17px}
+.pay-part.on{border-color:var(--purple);background:#fbf4fd}
+.pay-amount small{font-size:13px;font-weight:600;color:var(--muted)}
+.pay-h{margin:14px 0 2px;font-size:15px;color:var(--purple)}
+.accts{display:grid;gap:8px}
+.acct{display:flex!important;gap:10px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:10px 12px!important;margin:0!important;font-weight:400!important;cursor:pointer}
+.acct input{width:auto;margin:3px 0 0}.acct small{color:var(--muted)}
+.pay-declare{border-top:1px dashed var(--line);padding-top:4px}
+#payModal .modal-content{max-height:92vh;overflow:auto}
+.music-field{margin:13px 0}.music-field label{margin-bottom:8px!important}
+.music-chosen{display:flex;align-items:center;gap:10px;background:var(--pink);border-radius:12px;padding:6px 10px;margin-bottom:8px;font-weight:700;font-size:13px;color:#5d1f6e}
+.music-chosen img{width:48px;height:36px;object-fit:cover;border-radius:6px}.music-chosen span{flex:1}
+.music-chosen button{border:0;background:none;font-size:20px;color:#5d1f6e}
+.music-modal{width:min(640px,100%)!important;max-height:92vh;overflow:auto}
+.music-modal .chips{margin:10px 0}
+.chip{border:1px solid var(--line);background:#fff;border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;color:#5d1f6e}
+.chip.on{background:var(--purple);border-color:var(--purple);color:#fff}
+.music-list{display:grid;gap:10px}
+.music-item{display:grid;grid-template-columns:200px 1fr;gap:12px;border:1px solid var(--line);border-radius:14px;padding:8px;align-items:center}
+.music-thumb{position:relative;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:#000;cursor:pointer}
+.music-thumb img,.music-thumb iframe{width:100%;height:100%;object-fit:cover;border:0;display:block}
+.music-thumb span{position:absolute;inset:0;display:grid;place-items:center;color:#fff;font-size:26px;background:#0004}
+.music-meta{display:flex;flex-direction:column;gap:4px;align-items:flex-start}.music-meta small{color:var(--muted)}
+.music-meta .btn{padding:8px 16px;margin-top:4px}
+@media(max-width:560px){.music-item{grid-template-columns:128px 1fr;gap:10px}.music-meta b{font-size:14px}}
+
+/* V18 — suivi sans compte */
+.track-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:22px}
+.track-grid .panel{padding:22px}
+.who{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 16px;margin-bottom:16px;font-size:14px}
+.order .ref{font-size:12px!important;color:var(--muted);margin:0 0 4px!important;letter-spacing:.3px}
+.order-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.order.flash{animation:flash 2.2s ease}
+@keyframes flash{0%,40%{box-shadow:0 0 0 4px var(--gold)}100%{box-shadow:none}}
+@media(max-width:760px){.track-grid{grid-template-columns:1fr}}
+
+/* V18.1 — titres un peu plus petits */
+h1{font-size:clamp(32px,3.8vw,52px);letter-spacing:-1px;line-height:1.08}
+h2{font-size:clamp(25px,2.8vw,36px)}
+.hero p{font-size:16px}
+@media(max-width:700px){h1{font-size:clamp(28px,7.5vw,36px)!important}h2{font-size:24px!important}.hero p{font-size:14.5px}}

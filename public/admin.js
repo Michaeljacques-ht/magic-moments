@@ -6,8 +6,8 @@ const money = n => new Intl.NumberFormat('fr-HT').format(Math.round(Number(n) ||
 const fmtDate = v => v ? new Date(v.length === 10 ? v + 'T12:00:00' : v).toLocaleDateString('fr-CA', { dateStyle: 'medium' }) : '—';
 const fmtDT = v => v ? new Date(v).toLocaleString('fr-CA', { dateStyle: 'medium', timeStyle: 'short' }) : '—';
 const today = () => new Date().toISOString().slice(0, 10);
-const LABELS = { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En cours', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' };
-const PILL = { pending: 'warn', confirmed: '', preparing: '', in_progress: '', completed: 'ok', cancelled: 'grey', unpaid: 'warn', pending_verification: 'warn', paid: 'ok', refunded: 'grey' };
+const LABELS = { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En livraison', delivered: 'Livrée et installée', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', partial: 'Acompte payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' };
+const PILL = { pending: 'warn', confirmed: '', preparing: '', in_progress: '', delivered: '', completed: 'ok', cancelled: 'grey', unpaid: 'warn', partial: 'warn', pending_verification: 'warn', paid: 'ok', refunded: 'grey' };
 const pill = (v, map = PILL, lab = LABELS) => `<span class="pill ${map[v] || ''}">${h(lab[v] || v)}</span>`;
 
 async function api(url, opts = {}) {
@@ -75,13 +75,13 @@ const thumbHTML = (id, rm, wide) => `<span class="thumb ${wide ? 'wide' : ''}"><
 const VIEWS = [
   { id: 'dashboard', ico: '📊', label: 'Tableau de bord' },
   { id: 'orders', ico: '🧾', label: 'Commandes', badge: d => d.orders_pending + d.payments_to_check },
-  { id: 'rentals', ico: '🪑', label: 'Locations', badge: d => d.rentals_pending },
-  { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location']] },
+  { id: 'rentals', ico: '🪑', label: 'Locations', badge: d => d.rentals_pending + (d.rentals_to_check || 0) },
+  { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location'], ['music', 'Musiques (YouTube)']] },
   { id: 'content', ico: '🖼️', label: 'Site et contenu', tabs: [['contact', 'Coordonnées'], ['slides', 'Diaporama d’accueil'], ['announcements', 'Annonces'], ['gallery', 'Réalisations'], ['testimonials', 'Témoignages'], ['faq', 'FAQ']] },
   { id: 'hr', ico: '👥', label: 'Ressources humaines', badge: d => d.applications_new, tabs: [['recruit', 'Recrutement'], ['staff', 'Personnel'], ['payroll', 'Paie et avances']] },
   { id: 'accounting', ico: '📒', label: 'Comptabilité', tabs: [['summary', 'Synthèse'], ['journal', 'Journal'], ['accounts', 'Comptes']] },
   { id: 'traffic', ico: '📍', label: 'Visites et connexions' },
-  { id: 'settings', ico: '⚙️', label: 'Paramètres' }
+  { id: 'settings', ico: '⚙️', label: 'Paramètres', tabs: [['general', 'Général'], ['payments', 'Moyens de paiement'], ['messages', 'Messages par étape']] }
 ];
 const S = { view: 'dashboard', tab: {}, dash: null, settings: {}, period: { from: today().slice(0, 8) + '01', to: today() }, orderFilter: { q: '', status: 'open', pay: '' } };
 // Menu vertical unique : les sous-sections s'affichent sous la rubrique ouverte.
@@ -163,18 +163,20 @@ RENDER.orders = async view => {
         <p><b>Destinataire :</b> ${h(o.recipient)} · ${h(c.recipient_phone)}${c.alternate_phone ? ' · autre : ' + h(c.alternate_phone) : ''}</p>
         <p><b>Adresse :</b> ${h(o.address)}${c.landmark ? ' · ' + h(c.landmark) : ''}</p>
         ${o.message ? `<p><b>Carte :</b> « ${h(o.message)} » ${o.personalization?.sender ? '— ' + h(o.personalization.sender) : ''}</p>` : ''}
-        <p><b>Préférences :</b> ${h(Object.entries(o.personalization || {}).filter(x => x[1] && x[0] !== 'sender').map(x => x.join(' : ')).join(' · ') || '—')}</p>
-        <p><b>Paiement :</b> ${h(o.payment_reference || '—')} ${(o.payments || []).length ? `· ${o.payments.length} tentative(s) en ligne` : ''} · Magic Live : ${o.live_requested ? 'demandé' : 'non'} · Réf. ${h(o.id.slice(0, 8))}</p>
+        <p><b>Préférences :</b> ${h(Object.entries(o.personalization || {}).filter(x => x[1] && !['sender', 'music_id', 'music_url'].includes(x[0])).map(x => x.join(' : ')).join(' · ') || '—')}${o.personalization?.music_url ? ` · <a href="${h(o.personalization.music_url)}" target="_blank" rel="noopener">▶ écouter la musique choisie</a>` : ''}</p>
+        <p>Magic Live : ${o.live_requested ? 'demandé' : 'non'} · Réf. ${h(o.id.slice(0, 8))}</p>
+        ${payBlock('order', o, o.amount_due || o.total_htg)}
         <div class="controls">
           <label>Statut<select data-k="status">${['pending', 'confirmed', 'preparing', 'in_progress', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === o.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
-          <label>Paiement<select data-k="payment_status">${['unpaid', 'pending_verification', 'paid', 'refunded'].map(v => `<option value="${v}" ${v === o.payment_status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
+          <label>Paiement<select data-k="payment_status">${['unpaid', 'partial', 'pending_verification', 'paid', 'refunded'].map(v => `<option value="${v}" ${v === o.payment_status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
           <label>Montant à payer<input data-k="amount_due" type="number" min="1" placeholder="${o.total_htg}" value="${o.amount_due || ''}"></label>
           <label>Lien Magic Live<input data-k="live_url" placeholder="https://…" value="${h(o.live_url || '')}"></label>
         </div>
         <div class="form-actions"><button class="btn primary sm save-order" data-id="${o.id}">Enregistrer</button>
           ${st.online_payment && o.pay_token ? `<button class="btn line sm copy-link" data-link="${h(location.origin + '/#payer=' + o.id + '.' + o.pay_token)}">Copier le lien de paiement</button>` : ''}
-          ${c.sender_phone ? `<a class="btn line sm" target="_blank" rel="noopener" href="https://wa.me/${h(c.sender_phone.replace(/\D/g, '').replace(/^(\d{8})$/, '509$1'))}">WhatsApp client</a>` : ''}
+          <button class="btn line sm stage-msgs" data-kind="order" data-id="${o.id}">💬 Étapes et WhatsApp</button>
           ${o.payment_status === 'paid' ? `<button class="btn line sm receipt" data-id="${o.id}">Reçu</button>` : ''}</div>
+        <div class="stage-box" data-box="${o.id}"></div>
       </details></article>`; }).join('') || '<p class="empty">Aucune commande pour ce filtre.</p>'}</div>`;
   const upd = () => { f.q = $('#oq').value; f.status = $('#os').value; f.pay = $('#op').value; RENDER.orders(view).then(() => $('#oq').focus()); };
   $('#os').onchange = upd; $('#op').onchange = upd; let tm; $('#oq').oninput = () => { clearTimeout(tm); tm = setTimeout(upd, 350); };
@@ -193,13 +195,82 @@ document.addEventListener('click', safe(async e => {
   }
 }));
 
+/* ---------- Paiements reçus : acomptes, soldes, déclarations à vérifier ---------- */
+const PART = { deposit: 'Acompte', full: 'Totalité', balance: 'Solde' };
+const ATT = { paid: ['Reçu', 'ok'], declared: ['À vérifier', 'warn'], rejected: ['Refusé', 'bad'], pending: ['En ligne, en attente', 'grey'] };
+function payBlock(kind, x, total) {
+  const paid = x.amount_paid || (x.payment_status === 'paid' ? total : 0), rest = Math.max(0, total - paid);
+  const rows = (x.payments || []).filter(a => a.status !== 'pending' || Date.now() - Date.parse(a.created_at) < 864e5).slice().reverse().map(a => `<li><span>${h(fmtDT(a.created_at))}</span> <b>${money(a.amount)}</b> ${PART[a.part] ? '· ' + PART[a.part] : ''} · ${h(a.method || (a.status === 'pending' ? 'PlopPlop' : '—'))} · ${h(a.declared_ref || a.transaction_id || a.reference)} <span class="pill ${ATT[a.status]?.[1] || ''}">${ATT[a.status]?.[0] || h(a.status)}</span>
+    ${a.proof ? `<a href="/api/admin/files/${h(a.proof)}" target="_blank" rel="noopener">📎 Voir la preuve</a>` : ''}${a.reason ? ` <span class="muted">(${h(a.reason)})</span>` : ''}
+    ${a.status === 'declared' ? `<span class="row-actions"><button type="button" class="btn sm primary pay-review" data-kind="${kind}" data-id="${x.id}" data-ref="${h(a.reference)}" data-ok="1">✔ Confirmer la réception</button><button type="button" class="btn sm line pay-review" data-kind="${kind}" data-id="${x.id}" data-ref="${h(a.reference)}" data-ok="0">Refuser</button></span>` : ''}</li>`).join('');
+  return `<div class="paybox"><p><b>Paiement :</b> ${money(paid)} reçu sur ${money(total)}${rest && paid ? ` · <b>reste ${money(rest)}</b>` : ''} ${x.pay_method === 'cash' ? '· espèces à la livraison' : ''}</p>${rows ? `<ul class="paylist">${rows}</ul>` : ''}
+    ${rest > 0 && x.status !== 'cancelled' ? `<button type="button" class="btn line sm pay-record" data-kind="${kind}" data-id="${x.id}" data-rest="${rest}">💵 Encaisser un montant (espèces, MonCash…)</button>` : ''}</div>`;
+}
+document.addEventListener('click', safe(async e => {
+  const r = e.target.closest('.pay-review');
+  if (r) {
+    const ok = r.dataset.ok === '1'; let reason = '';
+    if (ok && !confirm('Confirmez avoir vérifié la réception de ce montant sur votre compte.')) return;
+    if (!ok && (reason = prompt('Motif du refus (visible dans la fiche) :', 'Transaction introuvable')) === null) return;
+    await post('/api/admin/payments/review', { kind: r.dataset.kind, id: r.dataset.id, reference: r.dataset.ref, accept: ok, reason });
+    toast(ok ? 'Paiement confirmé : le client reçoit son reçu.' : 'Déclaration refusée'); refreshDash(); render(); return;
+  }
+  const c = e.target.closest('.pay-record'); if (!c) return;
+  openForm({ title: 'Encaisser un montant', values: { amount: Number(c.dataset.rest), account: 'caisse' },
+    fields: [[{ name: 'amount', label: 'Montant reçu (HTG)', type: 'number', min: 1, required: true }, { name: 'account', label: 'Reçu sur', type: 'select', options: [['caisse', 'Espèces (caisse)'], ['moncash', 'MonCash'], ['natcash', 'NatCash'], ['banque', 'Banque'], ['plopplop', 'PlopPlop']] }],
+      { name: 'note', label: 'Référence ou note (facultatif)', placeholder: 'Ex. espèces remises à la livraison' }],
+    before: `<p class="hint">Reste à payer : ${money(Number(c.dataset.rest))}. Le client reçoit un reçu par courriel et l’écriture comptable est créée.</p>`,
+    onSubmit: async v => { await post('/api/admin/payments/record', { kind: c.dataset.kind, id: c.dataset.id, amount: v.amount, account: v.account, note: v.note }); toast('Encaissement enregistré'); refreshDash(); render(); } });
+}));
+
 /* ============ Locations ============ */
 RENDER.rentals = async view => {
-  const rentals = await api('/api/rentals');
-  view.innerHTML = rentals.length ? `<table class="table"><thead><tr><th>Matériel</th><th>Estimation</th><th>Lieu</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>${rentals.slice().reverse().map(r => `<tr><td data-l="Matériel">${r.items ? r.items.map(x => `<b>${h(x.name)}</b> × ${x.quantity}`).join('<br>') : `<b>${h(r.equipment_name)}</b> × ${r.quantity}`}${r.note ? `<br><span class="muted">« ${h(r.note)} »</span>` : ''}</td><td data-l="Estimation">${r.estimate ? money(r.estimate) + `<br><span class="muted">${r.days} jour(s)</span>` : '—'}</td><td data-l="Lieu">${h(r.city)}${r.address ? `<br><span class="muted">${h(r.address)}</span>` : ''}</td><td data-l="Période">${h(fmtDT(r.start_at))} → ${h(fmtDT(r.end_at))}</td>
-    <td data-l="Statut"><select data-rid="${r.id}">${['pending', 'confirmed', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === r.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></td><td><button class="btn sm primary save-rental" data-id="${r.id}">OK</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune demande de location.</p>';
-  view.querySelectorAll('.save-rental').forEach(b => b.onclick = safe(async () => { await post('/api/admin/rentals/' + b.dataset.id, { status: view.querySelector(`[data-rid="${b.dataset.id}"]`).value }, 'PATCH'); toast('Location mise à jour'); refreshDash(); }));
+  const [rentals, st] = await Promise.all([api('/api/rentals'), api('/api/settings')]);
+  const f = S.rentalFilter ??= { status: 'open' }, groups = { open: ['pending', 'confirmed', 'delivered'], pending: ['pending'], done: ['completed'], cancelled: ['cancelled'], all: null };
+  const list = rentals.filter(r => !groups[f.status] || groups[f.status].includes(r.status)).sort((a, b) => a.start_at.localeCompare(b.start_at));
+  view.innerHTML = `<div class="toolbar"><label>Statut<select id="rs">${[['open', 'En cours (à traiter)'], ['pending', 'À confirmer'], ['done', 'Terminées'], ['cancelled', 'Annulées'], ['all', 'Toutes']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+    <p class="muted">${list.length} location(s), triées par date de début. Étapes : demande → confirmée (à payer) → payée → livrée et installée → récupérée.</p>
+    <div class="list">${list.map(r => { const c = r.client || {}, pay = r.payment_status || 'unpaid', amount = r.amount_due || r.estimate || 0; return `<article class="item"><div class="item-head"><div class="grow"><strong>${r.items ? r.items.map(x => `${h(x.name)} × ${x.quantity}`).join(', ') : `${h(r.equipment_name)} × ${r.quantity}`}</strong> ${r.lang === 'ht' ? '<span class="pill">Kreyòl</span>' : ''}
+      <p>📅 ${h(fmtDT(r.start_at))} → ${h(fmtDT(r.end_at))} · 📍 ${h(r.city)}${r.address ? ' — ' + h(r.address) : ''}</p><p>👤 ${h(c.name || '')} ${h(r.phone || c.phone || '')} ${h(c.email || '')}</p></div>
+      <div style="text-align:right"><strong>${money(amount)}</strong>${r.days ? `<br><span class="muted">${r.days} jour(s)</span>` : ''}<br>${pill(r.status)} ${pill(pay)}</div></div>
+      <details><summary>Suivi, paiement et messages</summary>
+        ${r.note ? `<p><b>Note :</b> « ${h(r.note)} »</p>` : ''}
+        <p>Réf. LOC-${h(r.id.slice(0, 8).toUpperCase())}</p>
+        ${payBlock('rental', r, amount)}
+        <div class="controls">
+          <label>Étape<select data-k="status">${['pending', 'confirmed', 'delivered', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === r.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
+          <label>Paiement<select data-k="payment_status">${['unpaid', 'partial', 'pending_verification', 'paid', 'refunded'].map(v => `<option value="${v}" ${v === pay ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></label>
+          <label>Montant à payer<input data-k="amount_due" type="number" min="1" placeholder="${r.estimate || ''}" value="${r.amount_due || ''}"></label>
+        </div>
+        <div class="form-actions"><button class="btn primary sm save-rental" data-id="${r.id}">Enregistrer</button>
+          ${st.online_payment && r.pay_token ? `<button class="btn line sm copy-link" data-link="${h(location.origin + '/#payer-location=' + r.id + '.' + r.pay_token)}">Copier le lien de paiement</button>` : ''}
+          <button class="btn line sm stage-msgs" data-kind="rental" data-id="${r.id}">💬 Étapes et WhatsApp</button></div>
+        <div class="stage-box" data-box="${r.id}"></div>
+      </details></article>`; }).join('') || '<p class="empty">Aucune location pour ce filtre.</p>'}</div>`;
+  $('#rs').onchange = () => { f.status = $('#rs').value; RENDER.rentals(view); };
+  view.querySelectorAll('.save-rental').forEach(b => b.onclick = safe(async () => {
+    const box = b.closest('.item'), v = k => box.querySelector(`[data-k="${k}"]`).value.trim();
+    if (v('payment_status') === 'paid' && !confirm('Confirmez avoir vérifié le montant et la transaction.')) return;
+    await post('/api/admin/rentals/' + b.dataset.id, { status: v('status'), payment_status: v('payment_status'), amount_due: Number(v('amount_due')) || null }, 'PATCH');
+    toast('Location mise à jour'); refreshDash(); RENDER.rentals(view);
+  }));
 };
+
+/* ---------- Étapes et messages WhatsApp pré-enregistrés ---------- */
+async function showStages(btn) {
+  const box = document.querySelector(`.stage-box[data-box="${btn.dataset.id}"]`); if (!box) return;
+  if (box.innerHTML) { box.innerHTML = ''; return; }
+  const d = await api(`/api/admin/messages/${btn.dataset.kind}/${btn.dataset.id}`), steps = d.steps.filter(s => s.key !== 'cancelled'), i = steps.findIndex(s => s.current);
+  box.innerHTML = `<ol class="stepper">${steps.map((s, k) => `<li class="${k < i ? 'done' : k === i ? 'now' : ''}"><span>${k < i ? '✓' : k + 1}</span><small>${h(s.label)}</small></li>`).join('')}</ol>
+    ${d.client_phone ? '' : '<p class="warning">Aucun numéro WhatsApp client enregistré : utilisez « Copier » puis collez le message.</p>'}
+    <div class="msg-list">${d.steps.map(s => `<div class="msg ${s.current ? 'current' : ''}"><div class="msg-head"><b>${h(s.label)}</b> ${s.current ? '<span class="pill ok">Étape actuelle</span>' : ''} <span class="pill ${s.email_active ? '' : 'grey'}">${s.email_active ? 'Courriel auto' : 'Courriel désactivé'}</span></div>
+      <pre class="wa-text">${h(s.wa)}</pre><div class="form-actions">${s.wa_client ? `<a class="btn sm wa" target="_blank" rel="noopener" href="${h(s.wa_client)}">WhatsApp client</a>` : ''}${s.wa_dest ? `<a class="btn line sm" target="_blank" rel="noopener" href="${h(s.wa_dest)}">WhatsApp destinataire</a>` : ''}<button type="button" class="btn line sm copy-text" data-text="${h(s.wa)}">Copier</button></div></div>`).join('')}</div>
+    <p class="muted">Langue du client : ${d.lang === 'ht' ? 'Kreyòl' : 'Français'}. Textes modifiables dans Paramètres → Messages par étape.</p>`;
+}
+document.addEventListener('click', safe(async e => {
+  const b = e.target.closest('.stage-msgs'); if (b) return showStages(b);
+  const c = e.target.closest('.copy-text'); if (c) { try { await navigator.clipboard.writeText(c.dataset.text); toast('Message copié'); } catch { prompt('Message', c.dataset.text); } }
+}));
 
 /* ============ Catalogue ============ */
 const statusPill = x => x.needs_price ? '<span class="pill warn">À tarifer</span>' : x.active === false ? '<span class="pill grey">Inactif</span>' : '<span class="pill ok">Actif</span>';
@@ -545,12 +616,86 @@ RENDER['content:faq'] = async view => {
 };
 
 /* ============ Paramètres ============ */
-RENDER.settings = async view => {
+RENDER['settings:general'] = async view => {
   const [mail, st] = await Promise.all([api('/api/admin/mail'), api('/api/settings')]);
   view.innerHTML = `<div class="cards"><div class="card"><h3>💳 Paiement en ligne PlopPlop</h3><p>${st.online_payment ? '<span class="pill ok">Actif</span> Les clients paient par MonCash, NatCash ou Kashpaw après confirmation de leur commande.' : '<span class="pill warn">Non configuré</span> Ajoutez PLOP_CLIENT_ID et PLOP_CLIENT_SECRET dans Render → Environment, puis redémarrez le service.'}</p></div>
-    <div class="card"><h3>✉️ Courriels</h3><p>${mail.configured ? '<span class="pill ok">Service configuré</span>' : '<span class="pill warn">Non configuré</span> Ajoutez RESEND_API_KEY, MAIL_FROM et PUBLIC_URL dans Render.'}</p><p class="muted">Alertes de nouvelles commandes, paiements et candidatures : variable ADMIN_NOTIFY_EMAIL.</p></div>
+    <div class="card"><h3>✉️ Courriels automatiques</h3><p>${mail.configured ? `<span class="pill ok">${mail.provider === 'brevo' ? 'Brevo' : 'Resend'} actif</span> Expéditeur : ${h(mail.sender)}` : '<span class="pill warn">Non configuré</span> Ajoutez BREVO_API_KEY et MAIL_FROM (adresse validée dans Brevo) dans Render → Environment, puis redémarrez.'}</p><p class="muted">Un courriel part à chaque étape (demande, confirmation, paiement, préparation, livraison…). Textes : Paramètres → Messages par étape.</p><p class="muted">Alertes de nouvelles commandes, paiements et candidatures : variable ADMIN_NOTIFY_EMAIL.</p></div>
     <div class="card"><h3>👤 Compte</h3><p>${h(S.user.name)} · ${h(S.user.email)}</p><p class="muted">Pour changer de mot de passe : « Mot de passe oublié ? » sur le site.</p></div></div>
     <div class="card" style="margin-top:16px"><h3>Journal des 100 derniers courriels</h3><pre class="log">${h(mail.jobs.map(x => `${fmtDT(x.created_at)} · ${x.subject} → ${x.to} · ${{ pending: 'En attente', sent: 'Envoyé', failed: 'Échec' }[x.status]}${x.attempts > 1 ? ' (' + x.attempts + ' essais)' : ''}`).join('\n') || 'Aucun courriel.')}</pre></div>`;
+};
+
+/* ============ Moyens de paiement ============ */
+RENDER['settings:payments'] = async view => {
+  const d = await api('/api/admin/payment-settings'), P = JSON.parse(JSON.stringify(d.settings)), T = d.types;
+  const chk = (k, l, hint) => `<label class="check"><input type="checkbox" data-p="${k}" ${P[k] ? 'checked' : ''}> ${h(l)}</label>${hint ? `<p class="hint">${hint}</p>` : ''}`;
+  const draw = () => {
+    view.innerHTML = `<div class="cards">
+      <div class="card"><h3>🔖 Acompte à la demande</h3>${chk('deposit_enabled', 'Proposer un acompte dès l’envoi du formulaire', 'Le client réserve sa date (ou son matériel) en payant une partie tout de suite ; le solde se règle après confirmation.')}
+        <label>Pourcentage de l’acompte<input type="number" min="10" max="100" step="5" data-p="deposit_percent" value="${P.deposit_percent}"></label></div>
+      <div class="card"><h3>💳 Paiement en ligne PlopPlop</h3>${chk('online', 'Proposer le paiement en ligne (MonCash, NatCash, Kashpaw)')}
+        <p>${d.gateway ? '<span class="pill ok">Passerelle configurée</span> Confirmation automatique.' : '<span class="pill warn">Non configurée</span> Ajoutez PLOP_CLIENT_ID et PLOP_CLIENT_SECRET dans Render → Environment.'}</p></div>
+      <div class="card"><h3>💵 Espèces à la livraison</h3>${chk('cash', 'Indiquer aux clients qu’ils peuvent payer en espèces à la livraison', 'Vous enregistrez ensuite l’encaissement dans la fiche (bouton « Encaisser un montant »).')}</div></div>
+      <div class="card" style="margin-top:16px"><h3>🏦 Transfert direct sur vos comptes</h3>${chk('direct', 'Proposer le transfert direct (le client envoie l’argent puis déclare la transaction)', 'Le client indique le numéro de transaction et peut joindre une capture ; vous confirmez la réception dans la fiche. Aucune commission.')}
+        <div class="list" id="accts">${P.accounts.map((a, i) => `<div class="item" data-i="${i}"><div class="grid3"><label>Moyen<select data-a="type">${Object.entries(T).map(([k, t]) => `<option value="${k}" ${k === a.type ? 'selected' : ''}>${t.ico} ${h(t.name)}</option>`).join('')}</select></label>
+          <label>${h(T[a.type]?.field || 'Numéro')}<input data-a="number" value="${h(a.number)}" placeholder="+509 …"></label><label>Au nom de<input data-a="holder" value="${h(a.holder)}" placeholder="Nom du titulaire"></label></div>
+          <div class="grid2"><label>${a.type === 'banque' ? 'Banque' : 'Nom affiché'}<input data-a="${a.type === 'banque' ? 'bank' : 'label'}" value="${h(a.type === 'banque' ? a.bank : a.label)}" placeholder="${a.type === 'banque' ? 'Ex. Unibank' : 'Ex. MonCash Magic Moments'}"></label><label>Consigne au client (facultatif)<input data-a="instructions" value="${h(a.instructions)}" placeholder="Ex. envoyez la capture après le transfert"></label></div>
+          <div class="form-actions" style="justify-content:space-between"><label class="check"><input type="checkbox" data-a="active" ${a.active !== false ? 'checked' : ''}> Proposé aux clients</label><button type="button" class="btn line sm" data-rm="${i}">Retirer</button></div></div>`).join('') || '<p class="muted">Aucun compte déclaré.</p>'}</div>
+        <p><button type="button" class="btn line sm" id="addAcct">+ Ajouter un compte</button></p></div>
+      <div class="form-actions"><button type="button" class="btn primary" id="savePay">Enregistrer les moyens de paiement</button></div>`;
+    view.querySelectorAll('[data-p]').forEach(el => el.oninput = el.onchange = () => { P[el.dataset.p] = el.type === 'checkbox' ? el.checked : Number(el.value); });
+    view.querySelectorAll('[data-a]').forEach(el => el.oninput = el.onchange = () => { const a = P.accounts[el.closest('[data-i]').dataset.i]; a[el.dataset.a] = el.type === 'checkbox' ? el.checked : el.value; if (el.dataset.a === 'type') draw(); });
+    view.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { P.accounts.splice(Number(b.dataset.rm), 1); draw(); });
+    $('#addAcct').onclick = () => { P.accounts.push({ type: 'moncash', label: 'MonCash', number: '', holder: '', bank: '', instructions: '', active: true }); draw(); };
+    $('#savePay').onclick = safe(async () => { await post('/api/admin/payment-settings', P); toast('Moyens de paiement enregistrés'); });
+  };
+  draw();
+};
+
+/* ============ Musiques (YouTube) ============ */
+RENDER['catalog:music'] = async view => {
+  const d = await api('/api/admin/music'), cats = [...new Set([...d.categories, ...d.list.map(m => m.category)])];
+  view.innerHTML = `<div class="card"><h3>📥 Importer depuis YouTube</h3><p class="muted">Collez un ou plusieurs liens YouTube (un par ligne). Le titre et l’artiste sont récupérés automatiquement ; les clients écoutent un extrait et choisissent la musique de leur surprise.</p>
+      <label>Liens YouTube<textarea id="mUrls" rows="4" placeholder="https://www.youtube.com/watch?v=…&#10;https://youtu.be/…"></textarea></label>
+      <div class="toolbar"><label>Catégorie<select id="mCat">${cats.map(c => `<option>${h(c)}</option>`).join('')}</select></label><button type="button" class="btn primary" id="mImport">Importer</button></div><div id="mResult"></div></div>
+    <p class="muted" style="margin-top:16px">${d.list.length} musique(s). Cliquez sur une ligne pour modifier le titre, la catégorie ou la masquer.</p>
+    ${d.list.length ? `<table class="table"><tbody>${d.list.slice().reverse().map(m => `<tr class="clickable" data-id="${m.id}"><td style="width:110px"><img class="mini-img" style="width:96px;height:54px" src="https://i.ytimg.com/vi/${h(m.youtube_id)}/mqdefault.jpg" alt=""></td><td><b>${h(m.title)}</b><br><span class="muted">${h(m.artist || '—')}</span></td><td>${h(m.category)}</td><td>${m.active !== false ? '<span class="pill ok">Proposée</span>' : '<span class="pill grey">Masquée</span>'}</td><td><a href="https://www.youtube.com/watch?v=${h(m.youtube_id)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">▶ Écouter</a></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune musique pour le moment.</p>'}`;
+  $('#mImport').onclick = safe(async () => {
+    const r = await post('/api/admin/music/import', { urls: $('#mUrls').value, category: $('#mCat').value });
+    toast(r.added.length + ' musique(s) importée(s)'); await RENDER['catalog:music'](view);
+    if (r.skipped.length) $('#mResult').innerHTML = `<p class="warning">Ignorés : ${r.skipped.map(x => `${h(x.url.slice(0, 60))} (${h(x.reason)})`).join(' ; ')}</p>`;
+  });
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => {
+    const m = d.list.find(x => x.id === tr.dataset.id);
+    openForm({ title: 'Modifier la musique', values: { ...m, active: m.active !== false },
+      fields: [{ name: 'title', label: 'Titre', required: true }, [{ name: 'artist', label: 'Artiste' }, { name: 'category', label: 'Catégorie', type: 'select', options: cats.map(c => [c, c]) }], { name: 'active', label: 'Proposée aux clients', type: 'checkbox' }],
+      before: `<iframe class="yt-prev" src="https://www.youtube-nocookie.com/embed/${h(m.youtube_id)}?rel=0" title="Aperçu" allowfullscreen></iframe>`,
+      remove: async () => { await post('/api/admin/music/remove', { id: m.id }); toast('Musique retirée'); render(); },
+      onSubmit: async v => { await post('/api/admin/music/' + m.id, v, 'PATCH'); toast('Musique enregistrée'); render(); } });
+  });
+};
+
+/* ============ Messages par étape ============ */
+RENDER['settings:messages'] = async view => {
+  const d = await api('/api/admin/templates'), kind = S.msgKind ||= 'order';
+  const ph = Object.entries(d.placeholders).map(([k, l]) => `<code title="${h(l)}">${h(k)}</code>`).join(' ');
+  view.innerHTML = `<div class="toolbar"><label>Parcours<select id="mk"><option value="order" ${kind === 'order' ? 'selected' : ''}>Surprises (commandes)</option><option value="rental" ${kind === 'rental' ? 'selected' : ''}>Locations de matériel</option></select></label></div>
+    <p class="muted">À chaque étape, le courriel part automatiquement au client (s’il est activé) et le message WhatsApp est prêt dans la fiche de la commande ou de la location. Variables : ${ph}</p>
+    <table class="table"><thead><tr><th>Étape</th><th>Courriel (français)</th><th>Courriel</th><th>Kreyòl</th></tr></thead><tbody>${d.stages[kind].map((s, k) => { const t = d.templates[kind][s.key] || {}; return `<tr class="clickable" data-st="${s.key}"><td><b>${k + 1 <= d.stages[kind].length - 1 ? (k + 1) + '. ' : ''}${h(s.fr)}</b></td><td>${h(t.subject_fr)}<br><span class="muted">${h((t.wa_fr || '').slice(0, 90))}…</span></td><td>${t.active ? '<span class="pill ok">Automatique</span>' : '<span class="pill grey">Désactivé</span>'}</td><td>${t.body_ht ? '<span class="pill ok">✓</span>' : '<span class="pill warn">à traduire</span>'}</td></tr>`; }).join('')}</tbody></table>`;
+  $('#mk').onchange = () => { S.msgKind = $('#mk').value; RENDER['settings:messages'](view); };
+  view.querySelectorAll('tr[data-st]').forEach(tr => tr.onclick = () => {
+    const st = d.stages[kind].find(s => s.key === tr.dataset.st), t = d.templates[kind][st.key];
+    const fields = [{ name: 'active', label: 'Envoyer ce courriel automatiquement', type: 'checkbox' },
+      { name: 'subject_fr', label: 'Objet du courriel (français)', required: true }, { name: 'body_fr', label: 'Courriel (français)', type: 'textarea', rows: 5, required: true },
+      { name: 'wa_fr', label: 'WhatsApp au client (français)', type: 'textarea', rows: 4 },
+      ...(kind === 'order' ? [{ name: 'dest_fr', label: 'WhatsApp au destinataire (français, facultatif — ne pas dévoiler la surprise)', type: 'textarea', rows: 3 }] : []),
+      { name: 'subject_ht', label: 'Objet du courriel (kreyòl)' }, { name: 'body_ht', label: 'Courriel (kreyòl)', type: 'textarea', rows: 5 },
+      { name: 'wa_ht', label: 'WhatsApp au client (kreyòl)', type: 'textarea', rows: 4 },
+      ...(kind === 'order' ? [{ name: 'dest_ht', label: 'WhatsApp au destinataire (kreyòl, facultatif)', type: 'textarea', rows: 3 }] : [])];
+    openForm({ title: 'Étape « ' + st.fr + ' »', fields, values: t, before: `<p class="hint">Variables : ${ph}. Les détails (référence, montant, suivi des étapes, lien de l’espace client) sont ajoutés automatiquement sous le courriel.</p>`,
+      extra: '<p><button type="button" class="btn line sm" id="tplReset">Rétablir le texte par défaut</button></p>',
+      onRender: () => { $('#tplReset').onclick = safe(async () => { if (!confirm('Rétablir le texte d’origine de cette étape ?')) return; await post('/api/admin/templates/reset', { kind, stage: st.key }); closeModal(); toast('Texte rétabli'); RENDER['settings:messages'](view); }); },
+      onSubmit: async v => { await post('/api/admin/templates', { ...v, kind, stage: st.key }); toast('Messages enregistrés'); RENDER['settings:messages'](view); } });
+  });
 };
 
 /* ---------- Démarrage ---------- */

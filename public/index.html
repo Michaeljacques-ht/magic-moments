@@ -30,9 +30,7 @@
       <button type="button" id="langToggle" class="btn btn-outline lang-toggle" aria-label="Changer de langue">Kreyòl</button>
       <span id="identity"></span>
       <a id="adminLink" class="btn btn-gold hidden" href="/admin">Administration</a>
-      <button id="authButton" class="btn btn-outline">Se connecter</button>
-      <button id="accountButton" class="btn btn-outline hidden" type="button">Mon espace</button>
-      <button id="logoutButton" class="btn btn-outline hidden">Déconnexion</button>
+      <button id="authButton" class="btn btn-outline" type="button" data-account>Suivre ma commande</button>
       <button id="menuButton" class="menu-btn" type="button" aria-label="Ouvrir le menu" aria-expanded="false"><span></span><span></span><span></span></button>
     </div>
   </div>
@@ -53,12 +51,12 @@
       <a href="#contact"><i>📞</i>Contact</a>
       <a href="/faq"><i>❓</i>Questions fréquentes (FAQ)</a>
       <a href="#" data-open="careers"><i>💼</i>Carrières</a>
-      <a href="#espace" data-account><i>👤</i>Mon espace et Magic Live</a>
+      <a href="#espace" data-account><i>🔎</i>Suivre ma commande et Magic Live</a>
     </nav>
     <div class="drawer-foot">
       <button type="button" class="btn btn-outline-dark" id="drawerLang">Kreyòl</button>
       <a id="drawerAdmin" class="btn btn-gold hidden" href="/admin">Administration</a>
-      <button type="button" class="btn btn-purple" id="drawerAuth">Se connecter</button>
+      <button type="button" class="btn btn-purple" id="drawerAuth" data-account>Suivre ma commande</button>
     </div>
   </div>
 </div>
@@ -73,7 +71,6 @@
       <a class="btn btn-gold" href="#catalogue">Voir nos surprises ↗</a>
       <a class="btn btn-ghost custom-start" href="#commander">Composer ma surprise</a>
     </div>
-    <div class="hero-pills"><span>✓ Demande sans création de compte</span><span>✓ Confirmation par notre équipe</span></div>
   </div>
   <div class="hero-art"><div class="slideshow" id="slideshow" data-dyn><div class="slides" id="slides"><figure class="slide active"><img src="/logo.png" alt="Magic Moments" width="840" height="560"></figure></div><div class="slide-dots" id="slideDots"></div></div></div>
 </section>
@@ -167,13 +164,16 @@
         <legend>3. Votre carte</legend>
         <label>Message sur la carte<textarea name="message" id="messageInput" rows="3" placeholder="Votre message..." maxlength="1000"></textarea></label>
         <label>Signature<input name="sender" id="signInput" placeholder="Ex. Ta sœur Anne" maxlength="1000"></label>
-        <details class="prefs"><summary>Préférences (facultatif) : couleurs, thème, gâteau, musique</summary>
+        <div class="music-field"><label>Musique (facultatif)<input name="music" id="musicInput" maxlength="300" placeholder="Titre souhaité, ou choisissez dans notre playlist"></label><input type="hidden" name="music_id" id="musicId">
+          <div id="musicChosen"></div><button type="button" class="btn btn-outline-dark hidden" id="musicPick">🎵 Choisir dans notre playlist</button></div>
+        <details class="prefs"><summary>Préférences (facultatif) : couleurs, thème, gâteau</summary>
           <div class="form-grid"><label>Couleurs<input name="colors"></label><label>Thème<input name="theme"></label></div>
-          <div class="form-grid"><label>Gâteau / saveur<input name="cake"></label><label>Musique<input name="music"></label></div>
+          <label>Gâteau / saveur<input name="cake"></label>
           <label>Consignes particulières<textarea name="notes" rows="2"></textarea></label>
         </details>
         <label class="check"><input type="checkbox" name="live_requested"> Je souhaite suivre la surprise en direct via Magic Live (sous réserve de confirmation)</label>
         <div id="orderSummary" class="summary"></div>
+        <label class="check deposit-box hidden" id="orderDeposit"><input type="checkbox" name="pay_deposit" checked> <span class="deposit-text"></span></label>
       </fieldset>
 
       <div class="total">Montant estimatif <strong id="orderTotal">—</strong></div>
@@ -197,9 +197,11 @@
       <button type="button" class="btn btn-outline-dark full" id="addRentalLine">＋ Ajouter un autre matériel</button>
       <div class="form-grid"><label>Début<input name="start_at" type="datetime-local" required></label><label>Fin<input name="end_at" type="datetime-local" required></label></div>
       <div class="form-grid"><label>Ville<input name="city" placeholder="Ville de livraison" required maxlength="120"></label><label>Adresse (facultatif)<input name="address" placeholder="Rue, quartier" maxlength="300"></label></div>
+      <div class="form-grid"><label>Votre nom<input name="name" required minlength="2" maxlength="120" autocomplete="name"></label><label>Téléphone / WhatsApp<input name="phone" type="tel" required placeholder="+509 …" maxlength="25" pattern="\+?[0-9 ()-]{7,25}" autocomplete="tel"></label></div>
+      <label>Courriel (recommandé : suivi, reçus)<input name="email" type="email" maxlength="200" autocomplete="email"></label>
       <label>Précisions (facultatif)<textarea name="note" rows="2" maxlength="1000" placeholder="Installation, horaire de livraison…"></textarea></label>
       <div id="rentalBreakdown" class="summary" data-dyn></div>
-      <div class="total">Estimation <strong id="rentalTotal">—</strong></div><button class="btn btn-purple full">Demander la location →</button><p class="hint">Un compte client est nécessaire pour la location.</p></form></div>
+      <div class="total">Estimation <strong id="rentalTotal">—</strong></div><label class="check deposit-box hidden" id="rentalDeposit"><input type="checkbox" name="pay_deposit" checked> <span class="deposit-text"></span></label><button class="btn btn-purple full">Demander la location →</button><p class="hint">Aucun compte nécessaire : suivez votre demande avec sa référence et votre téléphone.</p></form></div>
   </div>
 </section>
 
@@ -216,12 +218,24 @@
   </div>
 </section>
 
-<section id="espace" class="section pale hidden">
+<section id="espace" class="section pale">
   <div class="wrap">
-    <div class="section-top"><div><div class="eyebrow dark">ESPACE CLIENT</div><h2>Mes commandes et Magic Live</h2></div><button class="btn btn-purple" id="refreshOrders">Actualiser</button></div>
-    <div id="myOrders" class="order-list"><div class="empty">Connectez-vous pour consulter vos commandes.</div></div>
-    <h3>Mes demandes de location</h3><div id="myRentals" class="order-list"></div>
-    <h3 id="live">📹 Magic Live</h3><p class="hint">Retrouvez vos directs privés. L’équipe vous communique un lien lorsque la diffusion est prête.</p><div id="liveList" class="order-list"></div><button id="liveRefresh" class="btn btn-outline-dark hidden">Accéder à mes directs</button>
+    <div class="section-top"><div><div class="eyebrow dark">SUIVI — SANS COMPTE</div><h2>Suivre ma commande</h2><p>Aucun compte nécessaire : retrouvez l’étape de vos demandes, payez et affichez vos reçus.</p></div><button class="btn btn-purple" id="refreshOrders" type="button">Actualiser</button></div>
+    <div id="espaceWho" class="who hidden" data-dyn></div>
+    <div id="espaceLogin" class="track-grid">
+      <form id="trackForm" class="panel" novalidate><h3>🔎 Suivre une demande</h3><p class="hint">Avec la référence reçue par courriel ou WhatsApp (ex. MM-1A2B3C4D) et votre numéro de téléphone.</p>
+        <label>Référence<input name="reference" required placeholder="MM-XXXXXXXX ou LOC-XXXXXXXX" autocapitalize="characters" maxlength="20"></label>
+        <label>Téléphone<input name="phone" type="tel" required placeholder="+509 …" maxlength="25" autocomplete="tel"></label>
+        <button class="btn btn-purple full">Voir l’étape de ma demande</button></form>
+      <form id="codeForm" class="panel" novalidate><h3>📋 Toutes mes demandes</h3><p class="hint">Indiquez votre téléphone ou votre courriel : nous vous envoyons un code à 6 chiffres par courriel.</p>
+        <label id="codeContactL">Téléphone ou courriel<input name="contact" required maxlength="200" placeholder="+509 … ou nom@exemple.com" autocomplete="email"></label>
+        <label id="codeL" class="hidden">Code reçu par courriel<input name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456"></label><p id="codeDest" class="hint" data-dyn></p>
+        <button class="btn btn-gold full" id="codeBtn">Recevoir mon code</button><button type="button" class="linkbtn hidden" id="codeRestart">Changer de téléphone ou de courriel</button></form>
+    </div>
+    <div id="trackResult" class="order-list" data-dyn></div>
+    <h3>Mes commandes</h3><div id="myOrders" class="order-list" data-dyn></div>
+    <h3>Mes demandes de location</h3><div id="myRentals" class="order-list" data-dyn></div>
+    <h3 id="live">📹 Magic Live</h3><p class="hint">Retrouvez vos directs privés. L’équipe vous communique un lien lorsque la diffusion est prête.</p><div id="liveList" class="order-list" data-dyn></div>
   </div>
 </section>
 
@@ -242,7 +256,7 @@
   <a href="#catalogue" data-sec="catalogue"><i>🎁</i><span>Surprises</span></a>
   <a href="#commander" data-sec="commander" class="bn-main custom-start"><i>✨</i><span>Créer</span></a>
   <a href="#location" data-sec="location"><i>🪑</i><span>Location</span></a>
-  <a href="#espace" data-sec="espace" data-account><i>👤</i><span>Compte</span></a>
+  <a href="#espace" data-sec="espace" data-account><i>🔎</i><span>Suivi</span></a>
 </nav>
 <div id="careersModal" class="modal hidden"><div class="modal-content wide"><button type="button" class="close" id="closeCareers" aria-label="Fermer">×</button><h2>Carrières</h2><p class="hint">Rejoignez l’équipe Magic Moments.</p><div id="jobsList" data-dyn></div></div></div>
 <div id="cookieBanner" class="cookie-banner hidden" role="dialog" aria-label="Cookies">
@@ -251,7 +265,8 @@
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
 <div id="lightbox" class="lightbox hidden" role="dialog" aria-label="Photos"><button type="button" class="close lb-close" aria-label="Fermer">×</button><button type="button" class="lb-nav lb-prev" aria-label="Précédente">‹</button><figure><img id="lbImg" alt=""><figcaption id="lbCaption" data-dyn></figcaption></figure><button type="button" class="lb-nav lb-next" aria-label="Suivante">›</button></div>
-<div id="payModal" class="modal hidden"><div class="modal-content"><button type="button" id="closePay" class="close" aria-label="Fermer">×</button><h2>Paiement de votre commande</h2><div id="payInfo"></div><div id="payActions" class="pay-actions"></div><p class="hint">Paiement sécurisé par PlopPlop : MonCash, NatCash ou Kashpaw.</p></div></div>
+<div id="payModal" class="modal hidden"><div class="modal-content"><button type="button" id="closePay" class="close" aria-label="Fermer">×</button><h2 id="payTitle">Paiement de votre commande</h2><div id="payInfo"></div><div id="payActions" class="pay-actions"></div></div></div>
+<div id="musicModal" class="modal hidden"><div class="modal-content music-modal"><button type="button" id="closeMusic" class="close" aria-label="Fermer">×</button><h2>Notre playlist</h2><p>Écoutez un extrait puis choisissez la musique de votre surprise.</p><input id="musicSearch" type="search" placeholder="Rechercher un titre ou un artiste"><div id="musicCats" class="chips"></div><div id="musicList" class="music-list"></div></div></div>
 <div id="authModal" class="modal hidden"><div class="modal-content"><button id="closeModal" class="close" aria-label="Fermer">×</button><h2 id="modalTitle">Connexion</h2><p id="modalIntro">Accédez à votre espace Magic Moments.</p><form id="authForm"><label id="nameLabel" class="hidden">Nom complet<input name="name" placeholder="Votre nom" autocomplete="name"></label><label id="emailLabel">Courriel<input name="email" type="email" required autocomplete="email"></label><label id="passwordLabel">Mot de passe<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="current-password"></label><label id="confirmLabel" class="hidden">Confirmer le mot de passe<input name="confirm" type="password" minlength="8" maxlength="128" autocomplete="new-password"></label><button class="btn btn-purple full" id="authSubmit">Se connecter</button></form><button type="button" class="linkbtn" id="forgotAuth">Mot de passe oublié ?</button><br><button type="button" class="linkbtn" id="switchAuth">Créer un compte</button></div></div>
 
 <script type="module" src="/app.js"></script>

@@ -33,17 +33,36 @@ export function migrate(db) {
   db.settings.hero_slides ??= db.settings.contact?.hero_media ? [{ media: db.settings.contact.hero_media, caption: '', caption_ht: '' }] : [];
 }
 
-/* ---------- Écritures comptables automatiques ---------- */
-export function recordOrderPaid(db, o, id, now) {
-  if (db.entries.some(e => e.ref === 'order:' + o.id && e.type === 'income')) return;
-  const online = (o.payments || []).some(x => x.status === 'paid');
-  db.entries.push({ id: id(), date: (o.paid_at || now()).slice(0, 10), type: 'income', category: 'Ventes de surprises', amount: o.amount_due || o.total_htg, account: online ? 'plopplop' : 'caisse', label: `Commande ${o.package_name} — ${o.recipient}`, ref: 'order:' + o.id, auto: true, created_at: now() });
+/* ---------- Écritures comptables automatiques ----------
+   Une commande ou une location peut être payée en plusieurs fois (acompte puis solde) :
+   chaque encaissement a sa propre écriture (ref « order:<id> », puis « order:<id>:2 »…). */
+const baseRef = (kind, x) => (kind === 'order' ? 'order:' : 'rental:') + x.id;
+const incomesOf = (db, base) => db.entries.filter(e => e.type === 'income' && (e.ref === base || e.ref.startsWith(base + ':')));
+const totalOf = (kind, x) => kind === 'order' ? (x.amount_due || x.total_htg) : (x.amount_due || x.estimate || 0);
+const titleOf = (kind, x) => kind === 'order' ? `${x.package_name} — ${x.recipient}` : `Location — ${x.equipment_name}`;
+export function recordPayment(db, kind, x, amount, account, part, id, now) {
+  if (!(amount > 0)) return;
+  const base = baseRef(kind, x), n = incomesOf(db, base).length;
+  db.entries.push({ id: id(), date: now().slice(0, 10), type: 'income', category: kind === 'order' ? 'Ventes de surprises' : 'Locations de matériel', amount, account: account || 'caisse',
+    label: (part === 'deposit' ? 'Acompte — ' : part === 'balance' ? 'Solde — ' : '') + titleOf(kind, x), ref: n ? base + ':' + (n + 1) : base, auto: true, created_at: now() });
 }
-export function recordOrderRefund(db, o, id, now) {
-  if (!db.entries.some(e => e.ref === 'order:' + o.id && e.type === 'income') || db.entries.some(e => e.ref === 'refund:' + o.id)) return;
-  const sale = db.entries.find(e => e.ref === 'order:' + o.id && e.type === 'income');
-  db.entries.push({ id: id(), date: today(), type: 'expense', category: 'Remboursements clients', amount: sale.amount, account: sale.account, label: `Remboursement — ${o.package_name} (${o.recipient})`, ref: 'refund:' + o.id, auto: true, created_at: now() });
+// Marquage « payé » par l'administrateur : on n'enregistre que ce qui n'a pas encore été compté.
+function recordRemainder(db, kind, x, id, now) {
+  const done = incomesOf(db, baseRef(kind, x)).reduce((a, e) => a + e.amount, 0), rest = totalOf(kind, x) - done;
+  if (rest > 0) recordPayment(db, kind, x, rest, (x.payments || []).some(p => p.status === 'paid' && !p.manual && !p.declared_ref) ? 'plopplop' : 'caisse', done ? 'balance' : 'full', id, () => (x.paid_at || now()));
 }
+function recordRefund(db, kind, x, id, now) {
+  const base = baseRef(kind, x), sales = incomesOf(db, base), refund = (kind === 'order' ? 'refund:' : 'refund-rental:') + x.id;
+  if (!sales.length || db.entries.some(e => e.ref === refund)) return;
+  db.entries.push({ id: id(), date: today(), type: 'expense', category: 'Remboursements clients', amount: sales.reduce((a, e) => a + e.amount, 0), account: sales[0].account, label: 'Remboursement — ' + titleOf(kind, x), ref: refund, auto: true, created_at: now() });
+}
+export const recordOrderPaid = (db, o, id, now) => recordRemainder(db, 'order', o, id, now);
+export const recordOrderRefund = (db, o, id, now) => recordRefund(db, 'order', o, id, now);
+export const recordRentalPaid = (db, r, id, now) => recordRemainder(db, 'rental', r, id, now);
+export const recordRentalRefund = (db, r, id, now) => recordRefund(db, 'rental', r, id, now);
+
+/* Preuve de paiement envoyée par un client (capture ou PDF), conservée en fichier privé. */
+export function saveProof(ctx, file) { return saveFile(ctx, file, { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'application/pdf': '.pdf' }, 6000000, 'proof'); }
 
 /* ---------- Soldes et rapports ---------- */
 function balances(db, until) {
@@ -133,7 +152,7 @@ export async function adminRoutes(ctx, { m, p, b, u, req, res, json }) {
       month_income: r.income, month_expense: r.expense, month_result: r.result, cash_total: r.cash_total, receivable: r.receivable, payroll_due: r.payroll_due,
       orders_pending: db.orders.filter(o => o.status === 'pending').length, orders_total: db.orders.length,
       payments_to_check: db.orders.filter(o => o.payment_status === 'pending_verification').length,
-      rentals_pending: db.rentals.filter(x => x.status === 'pending').length, applications_new: db.applications.filter(a => a.status === 'new').length,
+      rentals_pending: db.rentals.filter(x => x.status === 'pending').length, rentals_to_check: db.rentals.filter(x => x.payment_status === 'pending_verification').length, applications_new: db.applications.filter(a => a.status === 'new').length,
       employees_active: db.employees.filter(e => e.status === 'active').length,
       to_price: db.packages.filter(x => x.needs_price).length + db.elements.filter(x => x.needs_price).length + db.equipment.filter(x => x.needs_price).length,
       upcoming: db.orders.filter(o => o.status !== 'cancelled' && Date.parse(o.event_at) >= Date.now() && Date.parse(o.event_at) <= soon).sort((a, b) => a.event_at.localeCompare(b.event_at)).slice(0, 8).map(o => ({ id: o.id, package_name: o.package_name, recipient: o.recipient, city: o.city, event_at: o.event_at, status: o.status, payment_status: o.payment_status })),

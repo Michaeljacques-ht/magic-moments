@@ -15,7 +15,7 @@ const tr = (obj, field) => (lang === 'ht' && obj?.[field + '_ht']) || obj?.[fiel
 const trList = (obj, field) => (lang === 'ht' && obj?.[field + '_ht']?.length ? obj[field + '_ht'] : obj?.[field]) || [];
 const catName = c => (lang === 'ht' && state.catHT[c]) || c;
 
-const LABELS = { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En cours', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' };
+const LABELS = { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En livraison', delivered: 'Livrée et installée', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', partial: 'Acompte payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' };
 const label = x => t(LABELS[x] || x);
 const adminLabel = x => LABELS[x] || x;
 const money = n => new Intl.NumberFormat('fr-HT').format(Number(n)) + ' HTG';
@@ -83,9 +83,7 @@ function setMode(mode) {
 }
 const openModal = () => $('#authModal').classList.remove('hidden');
 const closeModal = () => { $('#authModal').classList.add('hidden'); state.resetToken = null; setMode('login'); };
-const needAuth = () => { if (state.user) return true; openModal(); toast('Connectez-vous pour continuer.'); return false; };
 
-$('#authButton').onclick = openModal;
 $('#closeModal').onclick = closeModal;
 $('#authModal').onclick = e => { if (e.target.id === 'authModal') closeModal(); };
 $('#switchAuth').onclick = () => setMode(state.mode === 'login' ? 'register' : 'login');
@@ -110,31 +108,31 @@ $('#authForm').onsubmit = async e => {
     toast(mode === 'reset' ? 'Mot de passe modifié. Vous êtes connecté.' : 'Bienvenue sur Magic Moments !'); refreshOrders();
   } catch (err) { toast(err.message); }
 };
-$('#logoutButton').onclick = async () => { try { await post('/api/auth/logout', {}); } catch {} state.user = null; renderAuth(); refreshOrders(); toast('Déconnexion effectuée'); };
+async function logoutClient() { try { await post('/api/client/logout', {}); } catch {} if (state.user) { try { await post('/api/auth/logout', {}); } catch {} state.user = null; renderAuth(); } refreshOrders(); toast('Déconnexion effectuée'); }
 
 /* Liens reçus par courriel : #reset=<jeton> (mot de passe) et #payer=<commande>.<jeton> (paiement). */
 function checkHashLinks() {
-  const h = location.hash, reset = /^#reset=([a-f0-9]{64})$/.exec(h), pay = /^#payer=([a-f0-9-]{36})\.([a-f0-9]{32})$/.exec(h);
+  const h = location.hash, reset = /^#reset=([a-f0-9]{64})$/.exec(h), pay = /^#payer(-location)?=([a-f0-9-]{36})\.([a-f0-9]{32})$/.exec(h), follow = /^#suivre=([ol])\.([a-f0-9-]{36})\.([a-f0-9]{32})$/.exec(h);
+  if (follow) { history.replaceState(null, '', location.pathname + location.search + '#espace'); remember(follow[1] === 'l' ? 'rental' : 'order', follow[2], follow[3]); refreshOrders().then(() => { const el = document.getElementById('it-' + follow[2]); (el || $('#espace')).scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.classList.add('flash'); }); return; }
+  if (pay) remember(pay[1] ? 'rental' : 'order', pay[2], pay[3]);
   if (!reset && !pay) return;
   history.replaceState(null, '', location.pathname + location.search);
   if (reset) { state.resetToken = reset[1]; setMode('reset'); openModal(); }
-  if (pay) openPay(pay[1], pay[2]);
+  if (pay) openPay(pay[2], pay[3], pay[1] ? 'rental' : 'order');
 }
 window.addEventListener('hashchange', checkHashLinks);
 
 function renderAuth() {
-  const u = state.user;
-  for (const [k, v] of Object.entries({ sender_name: u?.name, sender_email: u?.email, sender_phone: u?.phone })) { const el = $('#orderForm [name=' + k + ']'); if (u && !el.value) el.value = v || ''; if (!u) el.value = ''; }
-  $('#identity').textContent = u && u.role !== 'admin' ? t('Bonjour, {n}', { n: u.name.split(' ')[0] }) : '';
-  const admin = u?.role === 'admin', client = !!u && !admin;
-  // Compte administrateur : un seul accès, « Administration » (le reste fait doublon avec /admin).
-  $('#authButton').classList.toggle('hidden', !!u); $('#logoutButton').classList.toggle('hidden', !client); $('#accountButton').classList.toggle('hidden', !client);
+  const u = state.user, admin = u?.role === 'admin', client = !!u && !admin;
+  for (const [k, v] of Object.entries({ sender_name: u?.name, sender_email: u?.email, sender_phone: u?.phone })) { const el = $('#orderForm [name=' + k + ']'); if (client && !el.value) el.value = v || ''; }
+  for (const [k, v] of Object.entries({ name: u?.name, email: u?.email, phone: u?.phone })) { const el = $('#rentalForm [name=' + k + ']'); if (client && !el.value) el.value = v || ''; }
+  $('#identity').textContent = '';
+  // Administrateur : un seul accès, « Administration ». Les clients n'ont plus besoin de compte.
   for (const id of ['#adminLink', '#drawerAdmin']) $(id).classList.toggle('hidden', !admin);
-  $('#drawerAuth').classList.toggle('hidden', admin); $$('[data-account]').forEach(a => a.classList.toggle('hidden', admin && !a.closest('.bottom-nav')));
-  $('#espace').classList.toggle('hidden', !client);
-  $('#drawerAuth').textContent = t(u ? 'Déconnexion' : 'Se connecter'); $('#drawerHello').textContent = u ? t('Bonjour, {n}', { n: u.name.split(' ')[0] }) : '';
-  renderGallery(); renderTestimonials();
+  $$('[data-account]').forEach(a => a.classList.toggle('hidden', admin && !a.closest('.bottom-nav')));
+  $('#espace').classList.toggle('hidden', admin); $('#drawerHello').textContent = '';
 }
+
 
 /* ---------- Coordonnées, WhatsApp, pied de page ---------- */
 function waLink(text = t('Bonjour Magic Moments, je souhaite des informations.')) {
@@ -282,7 +280,7 @@ function orderTotal() {
 }
 const choicesText = (el, choices) => (el.groups || []).flatMap(g => [].concat(choices[g.id] || []).map(oid => optName(g.options.find(o => o.id === oid) || {}))).filter(Boolean).join(', ');
 function updateTotal() {
-  const v = orderTotal(); $('#orderTotal').textContent = v === null ? '—' : money(v);
+  const v = orderTotal(); $('#orderTotal').textContent = v === null ? '—' : money(v); depositText('#orderDeposit', v);
   if (!isCustom()) return;
   for (const r of $$('.element-row[data-on="1"]')) { const el = elById(r.dataset.id), q = Math.max(1, Number(r.querySelector('.el-qty').value) || 1); r.querySelector('.line-total').textContent = `${t('Sous-total')} : ${money(lineUnit(el, lineChoices(r)) * q)}`; }
   const lines = customLines();
@@ -338,12 +336,15 @@ $('#orderForm').onsubmit = async e => {
       event_at: new Date(f.get('event_at')).toISOString(), quantity: isCustom() ? 1 : Number(f.get('quantity') || 1), elements: isCustom() ? customLines() : [], live_requested: f.has('live_requested'), options: selectedOptions().map(x => x.id),
       ...Object.fromEntries(['sender_name', 'sender_phone', 'sender_email', 'recipient_phone', 'alternate_phone', 'department', 'landmark', 'colors', 'theme', 'cake', 'music', 'notes', 'sender'].map(k => [k, f.get(k) || '']))
     };
-    await post('/api/orders', body);
-    for (const k of ['recipient', 'recipient_phone', 'alternate_phone', 'message', 'sender', 'landmark', 'address', 'event_at', 'colors', 'theme', 'cake', 'music', 'notes']) e.target.elements[k].value = '';
+    body.music_id = f.get('music_id') || '';
+    const o = await post('/api/orders', body), wantDeposit = f.has('pay_deposit') && !$('#orderDeposit').classList.contains('hidden');
+    for (const k of ['recipient', 'recipient_phone', 'alternate_phone', 'message', 'sender', 'landmark', 'address', 'event_at', 'colors', 'theme', 'cake', 'music', 'music_id', 'notes']) e.target.elements[k].value = '';
+    $('#musicChosen').innerHTML = '';
+    remember('order', o.id, o.pay_token); refreshOrders();
+    if (wantDeposit && o.pay_token) openPay(o.id, o.pay_token, 'order', 'deposit');
     e.target.elements.live_requested.checked = false; cardDefaults();
     renderElements(); setBuildMode(state.buildMode); goStep(1);
-    if (state.user) { toast('Demande enregistrée ! Suivez-la dans votre espace client. Aucun paiement n’a été effectué.'); location.hash = 'espace'; refreshOrders(); }
-    else toast('Merci ! Votre demande est enregistrée. Notre équipe vous recontacte par WhatsApp ou téléphone. Un récapitulatif vous est envoyé par courriel.');
+    toast(t(wantDeposit ? 'Demande enregistrée (référence {r}) ! Réglez votre acompte pour réserver la date.' : 'Merci ! Demande enregistrée — référence {r}. Suivez-la dans « Suivre ma commande ». Un récapitulatif vous est envoyé par courriel.', { r: refOf('order', o) }));
   } catch (err) { toast(err.message); } finally { btn.disabled = false; }
 };
 
@@ -366,7 +367,12 @@ function updateRentalTotal() {
   const days = rentalDays(), lines = state.rentalLines.map(l => ({ e: eqById(l.id), qty: l.qty })).filter(x => x.e && x.qty > 0);
   const total = lines.reduce((a, x) => a + x.e.daily_price_htg * x.qty * days, 0);
   $('#rentalBreakdown').innerHTML = lines.length ? `<ul class="sum-lines">${lines.map(x => `<li><span>${escapeHTML(tr(x.e, 'name'))} × ${x.qty}</span><b>${money(x.e.daily_price_htg * x.qty * days)}</b></li>`).join('')}</ul><p class="hint">${t('Durée : {d} jour(s)', { d: days })}</p>` : '';
-  $('#rentalTotal').textContent = lines.length ? money(total) : '—';
+  $('#rentalTotal').textContent = lines.length ? money(total) : '—'; depositText('#rentalDeposit', lines.length ? total : null);
+}
+// Case « payer un acompte maintenant » : visible si l'acompte est activé et qu'un moyen de paiement existe.
+function depositText(sel, total) {
+  const box = $(sel), P = PAY(), on = P.deposit_enabled && payMethodsReady(); box.classList.toggle('hidden', !on); if (!on) return;
+  box.querySelector('.deposit-text').innerHTML = t('Réserver dès maintenant : payer un acompte de {p} %{m} juste après l’envoi (le solde sera réglé après confirmation).', { p: P.deposit_percent, m: total ? ' (' + money(Math.ceil(total * P.deposit_percent / 100)) + ')' : '' });
 }
 $('#rentalLines').addEventListener('input', e => {
   const row = e.target.closest('.rental-line'); if (!row) return; const l = state.rentalLines[Number(row.dataset.i)];
@@ -385,13 +391,16 @@ $('#equipmentGrid').addEventListener('click', e => {
   state.rentalTouched = true; renderRentalLines(); $('#rentalOpen').click(); toast(`${tr(eqById(id), 'name')} — ${t('Ajouté ✓')}`);
 });
 $('#rentalForm').onsubmit = async e => {
-  e.preventDefault(); if (!needAuth()) return; const form = e.target, f = new FormData(form);
+  e.preventDefault(); const form = e.target, f = new FormData(form);
   const items = state.rentalLines.filter(l => l.qty > 0).map(l => ({ equipment_id: l.id, quantity: l.qty }));
   if (!items.length) { toast('Ajoutez au moins un matériel.'); return; }
   for (const el of [form.elements.start_at, form.elements.end_at, form.elements.city]) if (!el.checkValidity()) { el.reportValidity(); return; }
   try {
-    await post('/api/rentals', { items, city: f.get('city'), address: f.get('address'), note: f.get('note'), start_at: new Date(f.get('start_at')).toISOString(), end_at: new Date(f.get('end_at')).toISOString() });
-    toast('Demande de location enregistrée, en attente de confirmation.'); form.reset(); state.rentalLines = []; state.rentalTouched = false; renderEquipment(); goAccount(); refreshOrders();
+    for (const el of [form.elements.name, form.elements.phone, form.elements.email]) if (!el.checkValidity()) { el.reportValidity(); return; }
+    const wantDeposit = f.has('pay_deposit') && !$('#rentalDeposit').classList.contains('hidden');
+    const r = await post('/api/rentals', { items, lang, name: f.get('name'), email: f.get('email') || '', phone: f.get('phone') || '', city: f.get('city'), address: f.get('address'), note: f.get('note'), start_at: new Date(f.get('start_at')).toISOString(), end_at: new Date(f.get('end_at')).toISOString() });
+    remember('rental', r.id, r.pay_token);
+    toast(t(wantDeposit ? 'Demande enregistrée (référence {r}) ! Réglez l’acompte pour bloquer le matériel.' : 'Demande de location enregistrée — référence {r}. Suivez-la dans « Suivre ma commande ».', { r: refOf('rental', r) })); form.reset(); state.rentalLines = []; state.rentalTouched = false; renderEquipment(); goAccount(); refreshOrders(); if (wantDeposit && r.pay_token) openPay(r.id, r.pay_token, 'rental', 'deposit');
   } catch (err) { toast(err.message.startsWith('Stock insuffisant : ') ? t('Stock insuffisant : {n}', { n: err.message.slice(20) }) : err.message); }
 };
 
@@ -420,39 +429,87 @@ function renderTestimonials() {
   $('#drawerAvis').classList.toggle('hidden', !state.testimonials.length);
 }
 
-/* ---------- Paiement en ligne (PlopPlop) ---------- */
-const canPayOnline = o => state.settings.online_payment && !['pending', 'cancelled'].includes(o.status) && ['unpaid', 'pending_verification'].includes(o.payment_status);
+/* ---------- Paiement : acompte, solde, en ligne (PlopPlop) ou transfert direct ---------- */
+const PAY = () => state.settings?.payment || { online: !!state.settings?.online_payment, cash: false, accounts: [], deposit_enabled: false, deposit_percent: 60 };
+const payMethodsReady = () => PAY().online || PAY().accounts.length > 0;
+// Même règle que le serveur : acompte ou totalité dès la demande (si l'acompte est activé), solde après confirmation.
+function canPay(x, total) {
+  const paid = x.amount_paid || 0;
+  if (!payMethodsReady() || x.status === 'cancelled' || ['paid', 'refunded'].includes(x.payment_status) || (x.payments || []).some(a => a.status === 'declared') || !(total > 0)) return false;
+  if (paid > 0) return x.status !== 'pending' && paid < total;
+  return x.status !== 'pending' || PAY().deposit_enabled;
+}
+const canPayOnline = o => canPay(o, o.amount_due || o.total_htg);
 let payTimer = null;
 function savePending(v) { try { v ? sessionStorage.setItem('mm_pay', JSON.stringify(v)) : sessionStorage.removeItem('mm_pay'); } catch {} }
-async function openPay(id, token) {
-  state.pay = { id, token, info: null, opened: false, error: '' }; $('#payModal').classList.remove('hidden'); renderPay();
-  try { state.pay.info = await post('/api/pay/info', { id, token }); if (state.pay.info.pending_attempt) { state.pay.opened = true; await verifyPay(true); } } catch (err) { state.pay.error = err.message; }
+async function openPay(id, token, kind = 'order', part = '') {
+  state.pay = { id, token, kind, part, info: null, opened: false, error: '', done: '' }; $('#payModal').classList.remove('hidden'); renderPay();
+  try { state.pay.info = await post('/api/pay/info', { id, token, kind }); if (state.pay.info.pending_attempt) { state.pay.opened = true; await verifyPay(true); } } catch (err) { state.pay.error = err.message; }
   renderPay();
 }
 function closePay() { $('#payModal').classList.add('hidden'); clearInterval(payTimer); payTimer = null; state.pay = null; }
 $('#closePay').onclick = closePay;
 $('#payModal').onclick = e => { if (e.target.id === 'payModal') closePay(); };
+const PART_LABEL = { deposit: 'Acompte de {p} %', full: 'Totalité', balance: 'Solde restant' };
 function renderPay() {
   const p = state.pay; if (!p) return; const i = p.info;
+  $('#payTitle').textContent = t(p.kind === 'rental' ? 'Paiement de votre location' : 'Paiement de votre commande');
   if (p.error) { $('#payInfo').innerHTML = `<p class="warning">${escapeHTML(t(p.error))}</p>`; $('#payActions').innerHTML = ''; return; }
   if (!i) { $('#payInfo').innerHTML = `<p>${t('Chargement…')}</p>`; $('#payActions').innerHTML = ''; return; }
-  $('#payInfo').innerHTML = `<div class="summary"><strong>${escapeHTML(tr(i, 'package_name'))}</strong><p>${t('Pour')} <b>${escapeHTML(i.recipient)}</b> · ${escapeHTML(dateTime(i.event_at))}</p><p class="pay-amount">${money(i.amount)}</p><p>${t('Statut')} : ${escapeHTML(label(i.status))} · ${t('Paiement')} : ${escapeHTML(label(i.payment_status))}</p></div>`;
-  let html = '';
+  $('#payInfo').innerHTML = `<div class="summary"><strong>${escapeHTML(tr(i, 'package_name'))}</strong>${i.kind === 'rental' ? `<p>🪑 ${t('Location')} · 📍 ${escapeHTML(i.city || '')}</p><p>${escapeHTML(dateTime(i.event_at, true))} — ${escapeHTML(dateTime(i.end_at, true))}</p>` : `<p>${t('Pour')} <b>${escapeHTML(i.recipient)}</b> · ${escapeHTML(dateTime(i.event_at))}</p>`}
+    <p>${t('Montant total')} : <b>${money(i.total)}</b>${i.paid_amount > 0 ? ` · ${t('Déjà payé')} : <b>${money(i.paid_amount)}</b> · ${t('Reste à payer')} : <b>${money(i.remaining)}</b>` : ''}</p>
+    <p>${t('Statut')} : ${escapeHTML(label(i.status))} · ${t('Paiement')} : ${escapeHTML(label(i.payment_status))}</p></div>`;
+  let html = p.done ? `<p class="success">✅ ${escapeHTML(t(p.done))}</p>` : '';
   if (i.payment_status === 'paid') html = `<p class="success">✅ ${t('Paiement confirmé ! Merci. Votre reçu vous est envoyé par courriel.')}</p>`;
-  else if (!i.online) html = `<p>${t('Le paiement en ligne n’est pas encore disponible. Notre équipe vous indiquera comment régler.')}</p>`;
-  else if (!i.payable) html = `<p>${t('Paiement possible après confirmation de la commande par notre équipe.')}</p>`;
+  else if (i.declared) html += `<p class="success">⏳ ${t('Votre paiement de {m} (réf. {r}) est en cours de vérification par notre équipe.', { m: money(i.declared.amount), r: escapeHTML(i.declared.reference) })}</p>`;
+  else if (!i.parts.length) html += `<p>${t(i.paid_amount > 0 ? 'Acompte reçu : votre date est réservée. Le solde sera payable après confirmation par notre équipe.' : i.kind === 'rental' ? 'Paiement possible après confirmation de la location par notre équipe.' : 'Paiement possible après confirmation de la commande par notre équipe.')}</p>`;
+  else if (!i.methods.online && !i.methods.accounts.length) html += `<p>${t('Le paiement en ligne n’est pas encore disponible. Notre équipe vous indiquera comment régler.')}</p>`;
   else {
-    html = `<button type="button" class="btn btn-gold full" id="payGo">💳 ${t('Payer {m} maintenant', { m: money(i.amount) })}</button>`;
-    if (p.opened) html += `<p class="hint">${t('Terminez le paiement sur la page PlopPlop, puis revenez ici.')}</p><button type="button" class="btn btn-purple full" id="payCheck">${t('J’ai payé — vérifier')}</button>`;
+    if (!i.parts.includes(p.part)) p.part = i.parts[0];
+    const amt = part => part === 'deposit' ? i.deposit : i.remaining, amount = amt(p.part);
+    html += i.parts.length > 1 ? `<div class="pay-parts">${i.parts.map(k => `<label class="pay-part ${k === p.part ? 'on' : ''}"><input type="radio" name="payPart" value="${k}" ${k === p.part ? 'checked' : ''}><span>${t(PART_LABEL[k], { p: i.deposit_percent })}</span><b>${money(amt(k))}</b></label>`).join('')}</div>` : `<p class="pay-amount">${money(amount)} <small>${t(PART_LABEL[p.part], { p: i.deposit_percent })}</small></p>`;
+    if (i.methods.online) {
+      html += `<h4 class="pay-h">💳 ${t('Payer en ligne')}</h4><button type="button" class="btn btn-gold full" id="payGo">${t('Payer {m} maintenant', { m: money(amount) })}</button><p class="hint">${t('MonCash, NatCash ou Kashpaw, paiement sécurisé par PlopPlop.')}</p>`;
+      if (p.opened) html += `<p class="hint">${t('Terminez le paiement sur la page PlopPlop, puis revenez ici.')}</p><button type="button" class="btn btn-purple full" id="payCheck">${t('J’ai payé — vérifier')}</button>`;
+    }
+    if (i.methods.accounts.length) {
+      html += `<h4 class="pay-h">🏦 ${t('Transfert direct')}</h4><p class="hint">${t('Envoyez {m} sur l’un de nos comptes, puis indiquez le numéro de transaction.', { m: money(amount) })}</p>
+        <div class="accts">${i.methods.accounts.map(a => `<label class="acct"><input type="radio" name="payAcct" value="${escapeHTML(a.id)}" ${i.methods.accounts.length === 1 ? 'checked' : ''}><span><b>${a.ico} ${escapeHTML(a.label)}</b><br>${escapeHTML(a.number)}${a.holder ? ' · ' + t('au nom de') + ' ' + escapeHTML(a.holder) : ''}${a.bank ? ' · ' + escapeHTML(a.bank) : ''}${a.instructions ? `<br><small>${escapeHTML(a.instructions)}</small>` : ''}</span></label>`).join('')}</div>
+        <form id="payDeclare" class="pay-declare"><label>${t('Numéro de transaction')}<input name="reference" required minlength="3" maxlength="80" placeholder="Ex. 123456789"></label><label>${t('Capture du paiement (facultatif)')}<input name="proof" type="file" accept="image/*,application/pdf"></label><button class="btn btn-purple full">${t('J’ai payé — envoyer ma référence')}</button></form>`;
+    }
+    if (i.methods.cash) html += `<p class="hint">💵 ${t('Vous pouvez aussi régler en espèces à la livraison : notre équipe vous remet un reçu.')}</p>`;
   }
   $('#payActions').innerHTML = html;
   $('#payGo')?.addEventListener('click', startPay); $('#payCheck')?.addEventListener('click', () => verifyPay(false));
+  $('#payActions').querySelectorAll('[name=payPart]').forEach(r => r.onchange = () => { p.part = r.value; renderPay(); });
+  $('#payDeclare')?.addEventListener('submit', declarePay);
+}
+// Capture d'écran réduite avant l'envoi (les photos de téléphone sont lourdes).
+function proofData(file) {
+  return new Promise((resolve, reject) => {
+    if (file.size > 8e6) return reject(Error('Fichier trop volumineux (6 Mo maximum)'));
+    if (!file.type.startsWith('image/')) { if (file.size > 6e6) return reject(Error('Fichier trop volumineux (6 Mo maximum)')); const r = new FileReader(); r.onload = () => resolve({ mime: file.type, data: r.result.split(',')[1] }); r.onerror = reject; r.readAsDataURL(file); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onload = () => { const k = Math.min(1, 1400 / Math.max(img.width, img.height)), c = document.createElement('canvas'); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url); resolve({ mime: 'image/jpeg', data: c.toDataURL('image/jpeg', 0.82).split(',')[1] }); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(Error('Image illisible')); }; img.src = url;
+  });
+}
+async function declarePay(e) {
+  e.preventDefault(); const p = state.pay, form = e.target, btn = form.querySelector('button'), acct = $('#payActions [name=payAcct]:checked')?.value;
+  if (!acct) { toast('Choisissez le compte sur lequel vous avez payé'); return; }
+  if (!form.elements.reference.checkValidity()) { form.elements.reference.reportValidity(); return; }
+  btn.disabled = true;
+  try {
+    const file = form.elements.proof.files[0], proof = file ? await proofData(file) : null;
+    p.info = await post('/api/pay/declare', { id: p.id, token: p.token, kind: p.kind, part: p.part, account: acct, reference: form.elements.reference.value.trim(), proof });
+    p.done = 'Merci ! Votre paiement a été transmis. Notre équipe le vérifie et vous confirme par courriel.'; renderPay(); refreshOrders();
+  } catch (err) { toast(err.message); btn.disabled = false; }
 }
 async function startPay() {
   const p = state.pay, w = window.open('', '_blank'); // ouverte tout de suite pour éviter le blocage des fenêtres
   try {
-    const r = await post('/api/pay/open', { id: p.id, token: p.token });
-    p.opened = true; savePending({ id: p.id, token: p.token }); renderPay();
+    const r = await post('/api/pay/open', { id: p.id, token: p.token, kind: p.kind, part: p.part });
+    p.opened = true; savePending({ id: p.id, token: p.token, kind: p.kind }); renderPay();
     if (w) w.location = r.url; else location.href = r.url;
     clearInterval(payTimer); let n = 0; payTimer = setInterval(() => { if (++n > 40 || !state.pay) { clearInterval(payTimer); return; } verifyPay(true); }, 6000);
   } catch (err) { if (w) w.close(); toast(err.message); }
@@ -460,8 +517,8 @@ async function startPay() {
 async function verifyPay(silent) {
   const p = state.pay; if (!p) return;
   try {
-    const r = await post('/api/pay/verify', { id: p.id, token: p.token }); p.info = r;
-    if (r.paid || r.payment_status === 'paid') { clearInterval(payTimer); savePending(null); renderPay(); toast('Paiement confirmé ! Merci.'); refreshOrders(); return; }
+    const r = await post('/api/pay/verify', { id: p.id, token: p.token, kind: p.kind }); p.info = r;
+    if (r.paid === true) { clearInterval(payTimer); savePending(null); p.opened = false; p.done = r.payment_status === 'paid' ? '' : 'Acompte reçu ! Votre date est réservée.'; renderPay(); toast(r.payment_status === 'paid' ? 'Paiement confirmé ! Merci.' : 'Acompte reçu ! Votre date est réservée.'); refreshOrders(); return; }
     if (!silent) toast('Le paiement n’est pas encore confirmé. Patientez quelques secondes puis réessayez.');
   } catch (err) { if (!silent) toast(err.message); }
   renderPay();
@@ -469,33 +526,85 @@ async function verifyPay(silent) {
 const onReturn = () => { if (state.pay?.opened && document.visibilityState === 'visible') verifyPay(true); };
 window.addEventListener('focus', onReturn); document.addEventListener('visibilitychange', onReturn);
 
-/* ---------- Espace client ---------- */
+/* ---------- Suivi par étapes (de la demande à la livraison) ---------- */
+const STEPS = {
+  order: [['pending', 'Demande reçue'], ['confirmed', 'Confirmée — à payer'], ['paid', 'Paiement reçu'], ['preparing', 'En préparation'], ['in_progress', 'En livraison'], ['completed', 'Livrée']],
+  rental: [['pending', 'Demande reçue'], ['confirmed', 'Confirmée — à payer'], ['paid', 'Paiement reçu'], ['delivered', 'Livrée et installée'], ['completed', 'Récupérée — terminée']]
+};
+function stageOf(kind, x) {
+  if (x.status === 'cancelled') return 'cancelled';
+  if ((kind === 'order' ? ['preparing', 'in_progress', 'completed'] : ['delivered', 'completed']).includes(x.status)) return x.status;
+  return x.payment_status === 'paid' ? 'paid' : x.status === 'confirmed' ? 'confirmed' : 'pending';
+}
+function stepper(kind, x) {
+  const st = stageOf(kind, x); if (st === 'cancelled') return `<p><span class="status cancelled">${t('Annulée')}</span></p>`;
+  const steps = STEPS[kind], i = steps.findIndex(s => s[0] === st);
+  return `<ol class="stepper" aria-label="${t('Suivi')}">${steps.map(([, l], k) => `<li class="${k < i ? 'done' : k === i ? 'now' : ''}"><span>${k < i ? '✓' : k + 1}</span><small>${escapeHTML(t(l))}</small></li>`).join('')}</ol>`;
+}
+
+/* ---------- Suivi sans compte (comme Konekte) ----------
+   Référence + téléphone, code par courriel, ou demandes mémorisées sur cet appareil. */
+const MINE_KEY = 'mm_mine';
+function deviceList() { try { return JSON.parse(localStorage.getItem(MINE_KEY) || '[]').filter(x => x && x.id && x.token); } catch { return []; } }
+function remember(kind, id, token) { if (!token) return; const l = deviceList().filter(x => x.id !== id); l.unshift({ kind, id, token }); try { localStorage.setItem(MINE_KEY, JSON.stringify(l.slice(0, 30))); } catch {} }
+const refOf = (kind, x) => (kind === 'order' ? 'MM-' : 'LOC-') + x.id.slice(0, 8).toUpperCase();
+function itemCard(v) {
+  const title = (lang === 'ht' && v.title_ht) || v.title, rest = v.remaining;
+  const head = v.kind === 'order' ? `🎁 ${escapeHTML(title)} · ${escapeHTML(v.recipient)}` : `🪑 ${escapeHTML(title)}`;
+  const when = v.kind === 'order' ? `<p>📍 ${escapeHTML(v.city)} · ${escapeHTML(dateTime(v.date))}</p>` : `<p>📍 ${escapeHTML(v.city)}${v.days ? ' · ' + v.days + ' ' + t('jour(s)') : ''}</p><p>${dateTime(v.date, true)} — ${dateTime(v.end, true)}</p>`;
+  const payBtn = v.can_pay ? `<button class="btn btn-gold pay-now" data-kind="${v.kind}" data-id="${escapeHTML(v.id)}" data-token="${escapeHTML(v.token)}">💳 ${t(v.paid > 0 ? 'Payer le solde ({m})' : PAY().deposit_enabled ? 'Payer l’acompte ou la totalité' : 'Payer {m} maintenant', { m: money(v.paid > 0 ? rest : v.total) })}</button>` : '';
+  const hint = v.declared ? `<p class="hint">⏳ ${t('Paiement déclaré, en cours de vérification.')}</p>` : v.status === 'pending' && !v.can_pay && v.payment_status !== 'paid' && payMethodsReady() ? `<p class="hint">${t(v.paid > 0 ? (v.kind === 'order' ? 'Acompte reçu : votre date est réservée. Le solde sera payable après confirmation par notre équipe.' : 'Acompte reçu : le matériel est bloqué pour vous. Le solde sera payable après confirmation.') : (v.kind === 'order' ? 'Paiement possible après confirmation de la commande par notre équipe.' : 'Paiement possible après confirmation de la location par notre équipe.'))}</p>` : '';
+  return `<article class="order" id="it-${escapeHTML(v.id)}"><div><p class="ref">${t('Référence')} : <b>${escapeHTML(v.ref)}</b></p><strong>${head}</strong>${when}${v.message ? `<p>${t('Carte')} : « ${escapeHTML(v.message)} »</p>` : ''}${v.music ? `<p>🎵 ${escapeHTML(v.music)}</p>` : ''}
+    ${stepper(v.kind, v)}<p>${t('Paiement')} : ${escapeHTML(label(v.payment_status))}${v.paid > 0 && rest > 0 ? ` · ${t('Déjà payé')} : <b>${money(v.paid)}</b> · ${t('Reste à payer')} : <b>${money(rest)}</b>` : ''}</p>
+    ${v.live_url ? `<p><a href="${escapeHTML(v.live_url)}" target="_blank" rel="noopener noreferrer">▶ ${t('Rejoindre Magic Live (lien externe)')}</a></p>` : ''}${hint}<div class="order-actions">${payBtn}${v.paid > 0 ? `<button class="btn btn-outline-dark receipt" data-kind="${v.kind}" data-id="${escapeHTML(v.id)}" data-token="${escapeHTML(v.token)}">🧾 ${t('Reçu')}</button>` : ''}</div></div><strong>${money(v.total)}</strong></article>`;
+}
 async function refreshOrders() {
   if (state.user?.role === 'admin') return;
-  if (!state.user) { showLive(); $('#myOrders').innerHTML = `<div class="empty">${t('Connectez-vous pour consulter vos commandes.')}</div>`; $('#myRentals').innerHTML = ''; return; }
-  try {
-    const [orders, rentals] = await Promise.all([api('/api/orders'), api('/api/rentals')]); showLive(orders);
-    const mine = state.user.role === 'admin' ? orders.filter(o => o.user_id === state.user.id) : orders;
-    $('#myOrders').innerHTML = mine.length ? mine.map(o => {
-      const amount = o.amount_due || o.total_htg, pkg = (lang === 'ht' && o.package_name_ht) || o.package_name;
-      const payBtn = canPayOnline(o) ? `<button class="btn btn-gold pay-now" data-id="${escapeHTML(o.id)}" data-token="${escapeHTML(o.pay_token || '')}">💳 ${t('Payer {m} maintenant', { m: money(amount) })}</button>` : '';
-      const manual = !state.settings.online_payment && o.payment_url && ['unpaid', 'pending_verification'].includes(o.payment_status) ? `<p><a target="_blank" rel="noopener noreferrer" href="${escapeHTML(o.payment_url)}">${t('Payer avec Pay’m PlopPlop')}</a> <button class="reference" data-id="${escapeHTML(o.id)}">${t('Déclarer la référence')}</button></p>` : '';
-      const waiting = o.status === 'pending' && o.payment_status === 'unpaid' && state.settings.online_payment ? `<p class="hint">${t('Paiement possible après confirmation de la commande par notre équipe.')}</p>` : '';
-      return `<article class="order"><div><strong>${escapeHTML(pkg)} · ${escapeHTML(o.recipient)}</strong><p>📍 ${escapeHTML(o.city)} · ${escapeHTML(dateTime(o.event_at))}</p>${o.message ? `<p>${t('Carte')} : « ${escapeHTML(o.message)} »</p>` : ''}<p><span class="status">${escapeHTML(label(o.status))}</span> · ${t('Paiement')} : ${escapeHTML(label(o.payment_status))}</p>${o.live_url ? `<p><a href="${escapeHTML(o.live_url)}" target="_blank" rel="noopener noreferrer">▶ ${t('Rejoindre Magic Live (lien externe)')}</a></p>` : ''}${waiting}${payBtn}${manual}${o.payment_status === 'paid' ? `<button class="receipt" data-id="${escapeHTML(o.id)}">${t('Reçu')}</button>` : ''}</div><strong>${money(amount)}</strong></article>`;
-    }).join('') : `<div class="empty">${t('Aucune commande pour le moment.')}</div>`;
-    const myRentals = state.user.role === 'admin' ? rentals.filter(r => r.user_id === state.user.id) : rentals;
-    $('#myRentals').innerHTML = myRentals.length ? myRentals.map(r => `<article class="order"><div><strong>${escapeHTML(r.items ? r.items.map(x => ((lang === 'ht' && x.name_ht) || x.name) + ' × ' + x.quantity).join(', ') : ((lang === 'ht' && state.equipment.find(e => e.id === r.equipment_id)?.name_ht) || r.equipment_name))}</strong><p>${r.items ? '' : Number(r.quantity) + ' ' + t('unité(s)') + ' · '}${escapeHTML(r.city)}${r.estimate ? ' · ' + money(r.estimate) : ''}</p><p>${dateTime(r.start_at, true)} — ${dateTime(r.end_at, true)}</p></div><span class="status">${escapeHTML(label(r.status))}</span></article>`).join('') : `<div class="empty">${t('Aucune demande de location.')}</div>`;
-  } catch (err) { toast(err.message); }
+  const saved = deviceList();
+  const [mine, dev] = await Promise.all([api('/api/client/mine').catch(() => ({ session: null, items: [] })), saved.length ? post('/api/track/device', { items: saved }).catch(() => []) : Promise.resolve([])]);
+  state.client = mine.session;
+  const map = new Map(); for (const v of [...mine.items, ...dev]) map.set(v.id, v);
+  const all = [...map.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
+  state.myItems = all;
+  $('#espaceWho').classList.toggle('hidden', !state.client && !saved.length);
+  $('#espaceWho').innerHTML = state.client ? `<span>✅ ${t('Connecté')} : <b>${escapeHTML(state.client.label)}</b></span><button type="button" class="btn btn-outline-dark" id="clientLogout">${t('Se déconnecter')}</button>`
+    : saved.length ? `<span>📱 ${t('Demandes envoyées depuis cet appareil')}</span><button type="button" class="linkbtn" id="forgetDevice">${t('Oublier cet appareil')}</button>` : '';
+  $('#espaceLogin').classList.toggle('hidden', !!state.client);
+  const orders = all.filter(v => v.kind === 'order'), rentals = all.filter(v => v.kind === 'rental');
+  $('#myOrders').innerHTML = orders.map(itemCard).join('') || `<div class="empty">${t('Aucune commande à afficher. Utilisez votre référence ou votre téléphone ci-dessus.')}</div>`;
+  $('#myRentals').innerHTML = rentals.map(itemCard).join('') || `<div class="empty">${t('Aucune demande de location.')}</div>`;
+  const lives = orders.filter(o => o.live_requested || o.live_url);
+  $('#liveList').innerHTML = lives.map(o => `<article class="order"><div><strong>${escapeHTML((lang === 'ht' && o.title_ht) || o.title)} — ${escapeHTML(o.recipient)}</strong><p>${escapeHTML(dateTime(o.date))}</p>${o.live_url ? `<a class="btn btn-purple" href="${escapeHTML(o.live_url)}" target="_blank" rel="noopener noreferrer">▶ ${t('Rejoindre le direct privé')}</a>` : `<p>${t('En attente du lien de diffusion de l’équipe.')}</p>`}</div></article>`).join('') || `<p>${t('Aucun direct demandé.')}</p>`;
 }
-async function showLive(list) {
-  if (!state.user) { $('#liveList').innerHTML = `<p>${t('Connectez-vous pour retrouver vos événements privés.')}</p>`; return; }
+$('#espaceWho').addEventListener('click', e => {
+  if (e.target.id === 'clientLogout') logoutClient();
+  if (e.target.id === 'forgetDevice' && confirm(t('Retirer de cet appareil la liste de vos demandes ? Vous pourrez les retrouver avec votre référence ou votre téléphone.'))) { try { localStorage.removeItem(MINE_KEY); } catch {} refreshOrders(); }
+});
+$('#trackForm').onsubmit = async e => {
+  e.preventDefault(); const f = e.target; for (const el of [f.elements.reference, f.elements.phone]) if (!el.value.trim()) { el.reportValidity(); toast(t('Indiquez la référence (ex. MM-1A2B3C4D) et votre numéro de téléphone.')); return; }
   try {
-    const orders = list || await api('/api/orders');
-    $('#liveList').innerHTML = orders.filter(o => (o.live_requested || o.live_url) && o.user_id === state.user.id).map(o => `<article class="order"><div><strong>${escapeHTML((lang === 'ht' && o.package_name_ht) || o.package_name)} — ${escapeHTML(o.recipient)}</strong><p>${escapeHTML(dateTime(o.event_at))}</p>${o.live_url ? `<a class="btn btn-purple" href="${escapeHTML(o.live_url)}" target="_blank" rel="noopener noreferrer">▶ ${t('Rejoindre le direct privé')}</a>` : `<p>${t('En attente du lien de diffusion de l’équipe.')}</p>`}</div></article>`).join('') || `<p>${t('Aucun direct demandé.')}</p>`;
+    const v = await post('/api/track', { reference: f.elements.reference.value, phone: f.elements.phone.value });
+    remember(v.kind, v.id, v.token); f.reset(); await refreshOrders();
+    const el = document.getElementById('it-' + v.id); el?.scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.classList.add('flash');
   } catch (err) { toast(err.message); }
-}
-$('#liveRefresh').onclick = () => { if (needAuth()) showLive(); };
-window.addEventListener('hashchange', () => { if (location.hash === '#live' && state.user) showLive(); });
+};
+state.codeChallenge = null;
+function resetCodeForm() { state.codeChallenge = null; const f = $('#codeForm'); f.reset(); $('#codeL').classList.add('hidden'); $('#codeContactL').classList.remove('hidden'); $('#codeDest').textContent = ''; $('#codeBtn').textContent = t('Recevoir mon code'); $('#codeRestart').classList.add('hidden'); }
+$('#codeRestart').onclick = resetCodeForm;
+$('#codeForm').onsubmit = async e => {
+  e.preventDefault(); const f = e.target, btn = $('#codeBtn'); btn.disabled = true;
+  try {
+    if (!state.codeChallenge) {
+      if (!f.elements.contact.value.trim()) { toast(t('Indiquez votre numéro de téléphone ou votre courriel.')); return; }
+      const r = await post('/api/client/code', { contact: f.elements.contact.value, lang }); state.codeChallenge = r.challenge;
+      $('#codeL').classList.remove('hidden'); $('#codeContactL').classList.add('hidden'); $('#codeRestart').classList.remove('hidden');
+      $('#codeDest').textContent = t('Code envoyé à {d}. Vérifiez aussi les courriels indésirables.', { d: r.destination }); btn.textContent = t('Valider le code'); f.elements.code.focus();
+    } else {
+      await post('/api/client/verify', { challenge: state.codeChallenge, code: f.elements.code.value }); resetCodeForm();
+      toast('Bienvenue ! Voici toutes vos demandes.'); await refreshOrders(); $('#myOrders').scrollIntoView({ behavior: 'smooth' });
+    }
+  } catch (err) { toast(err.message); if (/expiré|tentatives/.test(err.message)) resetCodeForm(); } finally { btn.disabled = false; }
+};
 $('#refreshOrders').onclick = refreshOrders;
 
 async function loadCategories() { const full = await api('/api/categories?full=1'); state.categories = full.map(x => x.name); state.catHT = Object.fromEntries(full.filter(x => x.name_ht).map(x => [x.name, x.name_ht])); }
@@ -507,9 +616,7 @@ $('#menuButton').onclick = () => openDrawer(true);
 $('#drawerClose').onclick = () => openDrawer(false);
 drawer.addEventListener('click', e => { if (e.target === drawer || e.target.closest('.drawer-nav a')) openDrawer(false); });
 $('#drawerLang').onclick = () => { setLang(lang === 'ht' ? 'fr' : 'ht'); };
-$('#drawerAuth').onclick = () => { openDrawer(false); if (state.user) $('#logoutButton').click(); else openModal(); };
-$('#accountButton').onclick = () => goAccount();
-function goAccount() { if (!state.user) { openModal(); return; } if (state.user.role === 'admin') { location.href = '/admin'; return; } $('#espace').classList.remove('hidden'); $('#espace').scrollIntoView({ behavior: 'smooth' }); }
+function goAccount() { if (state.user?.role === 'admin') { location.href = '/admin'; return; } $('#espace').classList.remove('hidden'); $('#espace').scrollIntoView({ behavior: 'smooth' }); }
 document.addEventListener('click', e => { const a = e.target.closest('[data-account]'); if (!a) return; e.preventDefault(); openDrawer(false); goAccount(); });
 // Raccourci actif selon la section visible.
 const secs = ['accueil', 'catalogue', 'commander', 'location', 'espace'].map(id => document.getElementById(id)).filter(Boolean);
@@ -579,27 +686,60 @@ $('#careersModal').onclick = e => { if (e.target.id === 'careersModal') $('#care
 document.addEventListener('click', async e => {
   const b = e.target.closest('button[data-id]'); if (!b) return; const id = b.dataset.id;
   try {
-    if (b.matches('.pay-now')) openPay(id, b.dataset.token);
+    if (b.matches('.pay-now')) openPay(id, b.dataset.token, b.dataset.kind || 'order');
     else if (b.matches('.reference')) { const reference = prompt(t('Référence de transaction')); if (!reference) return; await post('/api/payment-reference', { id, reference }); await refreshOrders(); }
     else if (b.matches('.receipt')) {
       const w = window.open('', '_blank'); if (!w) throw Error('Autorisez les fenêtres contextuelles');
-      try { const r = await api('/api/receipt/' + id); w.document.body.innerHTML = `<h1>Magic Moments — ${t('Reçu')}</h1><p>${escapeHTML(r.number)}</p><p>${t('Client')} : ${escapeHTML(r.customer)}</p><p>${t('Surprise')} : ${escapeHTML(r.package)}</p><p>${t('Options')} : ${escapeHTML(r.options.map(x => ((lang === 'ht' && x.name_ht) || x.name) + ((x.choices || []).length ? ' (' + x.choices.map(c => (lang === 'ht' && c.option_ht) || c.option).join(', ') + ')' : '') + (x.quantity > 1 ? ' × ' + x.quantity : '')).join(', '))}</p><h2>${t('Montant encaissé')} : ${money(r.total)}</h2><p>${t('Date')} : ${escapeHTML(r.date ? dateTime(r.date) : t('Non enregistrée'))}</p><p>${t('Transaction')} : ${escapeHTML(r.reference || t('Validation administrative'))}</p>`; w.print(); } catch (err) { w.close(); throw err; }
+      try {
+        const r = await post('/api/receipt/view', { kind: b.dataset.kind || 'order', id, token: b.dataset.token }), nm = x => (lang === 'ht' && x.name_ht) || x.name;
+        w.document.title = 'Magic Moments — ' + r.number;
+        w.document.body.innerHTML = `<div style="font-family:Arial,sans-serif;max-width:620px;margin:24px auto;color:#24162c"><img src="/logo-header.png" alt="Magic Moments" style="height:56px"><h1 style="font-size:22px">${t('Reçu')} — ${escapeHTML(r.number)}</h1>
+          <p>${t('Client')} : <b>${escapeHTML(r.customer)}</b></p><p>${t(r.kind === 'rental' ? 'Location' : 'Surprise')} : ${escapeHTML(r.title)}</p>
+          <p>${t('Options')} : ${escapeHTML(r.options.map(x => nm(x) + ((x.choices || []).length ? ' (' + x.choices.map(c => (lang === 'ht' && c.option_ht) || c.option).join(', ') + ')' : '') + (x.quantity > 1 ? ' × ' + x.quantity : '')).join(', ') || '—')}</p>
+          <table style="width:100%;border-collapse:collapse;margin:14px 0">${r.payments.map(x => `<tr><td style="border-bottom:1px solid #ddd;padding:6px">${escapeHTML(dateTime(x.date))}</td><td style="border-bottom:1px solid #ddd;padding:6px">${escapeHTML(x.method)} · ${escapeHTML(x.reference || '')}</td><td style="border-bottom:1px solid #ddd;padding:6px;text-align:right"><b>${money(x.amount)}</b></td></tr>`).join('')}</table>
+          <h2 style="font-size:18px">${t('Montant encaissé')} : ${money(r.paid)} / ${money(r.total)}</h2>${r.remaining > 0 ? `<p>${t('Reste à payer')} : <b>${money(r.remaining)}</b></p>` : ''}<p>${t('Transaction')} : ${escapeHTML(r.reference || t('Validation administrative'))}</p></div>`;
+        w.print();
+      } catch (err) { w.close(); throw err; }
     }
   } catch (err) { toast(err.message); }
 });
+
+/* ---------- Playlist : musiques importées de YouTube par l'équipe ---------- */
+state.musicCat = '';
+function renderMusic() {
+  const q = $('#musicSearch').value.trim().toLowerCase(), cats = [...new Set(state.music.map(m => m.category))];
+  $('#musicCats').innerHTML = ['', ...cats].map(c => `<button type="button" class="chip ${c === state.musicCat ? 'on' : ''}" data-cat="${escapeHTML(c)}">${escapeHTML(c ? t(c) : t('Toutes'))}</button>`).join('');
+  const list = state.music.filter(m => (!state.musicCat || m.category === state.musicCat) && (!q || (m.title + ' ' + m.artist).toLowerCase().includes(q)));
+  $('#musicList').innerHTML = list.map(m => `<div class="music-item" data-id="${escapeHTML(m.id)}"><div class="music-thumb" data-yt="${escapeHTML(m.youtube_id)}"><img src="https://i.ytimg.com/vi/${escapeHTML(m.youtube_id)}/mqdefault.jpg" alt="" loading="lazy"><span>▶</span></div>
+    <div class="music-meta"><b>${escapeHTML(m.title)}</b><small>${escapeHTML(m.artist || '')}${m.artist ? ' · ' : ''}${escapeHTML(t(m.category))}</small><button type="button" class="btn btn-gold music-choose">${t('Choisir')}</button></div></div>`).join('') || `<p class="empty">${t('Aucune musique trouvée.')}</p>`;
+}
+function musicChip(m) { $('#musicChosen').innerHTML = m ? `<div class="music-chosen"><img src="https://i.ytimg.com/vi/${escapeHTML(m.youtube_id)}/default.jpg" alt=""><span>🎵 ${escapeHTML(m.title)}</span><button type="button" id="musicClear" aria-label="Retirer">×</button></div>` : ''; }
+$('#musicPick').onclick = () => { $('#musicModal').classList.remove('hidden'); renderMusic(); $('#musicSearch').focus(); };
+const closeMusic = () => { $('#musicModal').classList.add('hidden'); $('#musicList').innerHTML = ''; };
+$('#closeMusic').onclick = closeMusic;
+$('#musicModal').onclick = e => { if (e.target.id === 'musicModal') closeMusic(); };
+$('#musicSearch').oninput = renderMusic;
+$('#musicCats').onclick = e => { const c = e.target.closest('[data-cat]'); if (!c) return; state.musicCat = c.dataset.cat; renderMusic(); };
+$('#musicList').onclick = e => {
+  const th = e.target.closest('.music-thumb'); if (th && !th.querySelector('iframe')) { th.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${th.dataset.yt}?autoplay=1&rel=0" title="YouTube" allow="autoplay; encrypted-media" allowfullscreen></iframe>`; return; }
+  const b = e.target.closest('.music-choose'); if (!b) return; const m = state.music.find(x => x.id === b.closest('.music-item').dataset.id);
+  $('#musicId').value = m.id; $('#musicInput').value = m.title + (m.artist ? ' — ' + m.artist : ''); musicChip(m); closeMusic(); toast(`🎵 ${m.title} — ${t('Ajouté ✓')}`);
+};
+$('#musicInput').addEventListener('input', () => { $('#musicId').value = ''; musicChip(null); });
+$('#musicChosen').addEventListener('click', e => { if (e.target.id === 'musicClear') { $('#musicId').value = ''; $('#musicInput').value = ''; musicChip(null); } });
 
 /* ---------- Démarrage ---------- */
 async function init() {
   $('#year').textContent = new Date().getFullYear();
   translateStatic();
   try {
-    const [packages, equipment, elements, gallery, settings, testimonials, announcements] = await Promise.all(['/api/packages', '/api/equipment', '/api/elements', '/api/gallery', '/api/settings', '/api/testimonials', '/api/announcements'].map(u => api(u)));
-    Object.assign(state, { packages, equipment, elements, gallery, settings, testimonials, announcements }); renderTicker(); await loadCategories();
+    const [packages, equipment, elements, gallery, settings, testimonials, announcements, music] = await Promise.all(['/api/packages', '/api/equipment', '/api/elements', '/api/gallery', '/api/settings', '/api/testimonials', '/api/announcements', '/api/music'].map(u => api(u).catch(() => [])));
+    Object.assign(state, { packages, equipment, elements, gallery, settings, testimonials, announcements, music }); $('#musicPick').classList.toggle('hidden', !music.length); depositText('#orderDeposit', orderTotal()); depositText('#rentalDeposit', null); renderTicker(); await loadCategories();
     renderElements(); renderCategories(); renderCatalog(); setBuildMode('custom'); renderEquipment(); renderGallery(); renderContact(); cardDefaults(); setMode('login'); goStep(1);
     try { state.user = (await api('/api/me')).user; } catch {}
     renderAuth(); refreshOrders(); checkHashLinks();
     if (!getCookie('mm_consent')) showCookieBanner(true); else recordVisit();
-    if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token); } catch {} }
+    if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token, p.kind || 'order'); } catch {} }
   } catch (err) { toast(t('Impossible de charger les données : ') + t(err.message)); }
 }
 init();

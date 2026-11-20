@@ -63,8 +63,8 @@ export const EQUIPMENT_HT = {
 
 /* ---------- Courriels ---------- */
 export const LABELS = {
-  fr: { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En cours', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' },
-  ht: { pending: 'Ap tann', confirmed: 'Konfime', preparing: 'Ap prepare', in_progress: 'Ap fèt', completed: 'Fini', cancelled: 'Anile', unpaid: 'Poko peye', pending_verification: 'Ap verifye', paid: 'Peye', refunded: 'Ranbouse' }
+  fr: { pending: 'En attente', confirmed: 'Confirmée', preparing: 'En préparation', in_progress: 'En livraison', delivered: 'Livrée et installée', completed: 'Terminée', cancelled: 'Annulée', unpaid: 'Non payé', partial: 'Acompte payé', pending_verification: 'En vérification', paid: 'Payé', refunded: 'Remboursé' },
+  ht: { pending: 'Ap tann', confirmed: 'Konfime', preparing: 'Ap prepare', in_progress: 'Sou wout', delivered: 'Livre e enstale', completed: 'Fini', cancelled: 'Anile', unpaid: 'Poko peye', partial: 'Avans peye', pending_verification: 'Ap verifye', paid: 'Peye', refunded: 'Ranbouse' }
 };
 export const MAIL = {
   fr: {
