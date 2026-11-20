@@ -105,6 +105,7 @@ $('#authForm').onsubmit = async e => {
       const body = { email: f.get('email'), password: f.get('password') }; if (mode === 'register') body.name = f.get('name');
       r = await post(mode === 'register' ? '/api/auth/register' : '/api/auth/login', body);
     }
+    if (r.user.role === 'admin') { location.href = '/admin'; return; }
     state.user = r.user; form.reset(); closeModal(); renderAuth();
     toast(mode === 'reset' ? 'Mot de passe modifié. Vous êtes connecté.' : 'Bienvenue sur Magic Moments !'); refreshOrders();
   } catch (err) { toast(err.message); }
@@ -124,10 +125,13 @@ window.addEventListener('hashchange', checkHashLinks);
 function renderAuth() {
   const u = state.user;
   for (const [k, v] of Object.entries({ sender_name: u?.name, sender_email: u?.email, sender_phone: u?.phone })) { const el = $('#orderForm [name=' + k + ']'); if (u && !el.value) el.value = v || ''; if (!u) el.value = ''; }
-  $('#identity').textContent = u ? t('Bonjour, {n}', { n: u.name.split(' ')[0] }) : '';
-  $('#authButton').classList.toggle('hidden', !!u); $('#logoutButton').classList.toggle('hidden', !u); $('#accountButton').classList.toggle('hidden', !u);
-  for (const id of ['#adminLink', '#drawerAdmin']) $(id).classList.toggle('hidden', u?.role !== 'admin');
-  $('#espace').classList.toggle('hidden', !u);
+  $('#identity').textContent = u && u.role !== 'admin' ? t('Bonjour, {n}', { n: u.name.split(' ')[0] }) : '';
+  const admin = u?.role === 'admin', client = !!u && !admin;
+  // Compte administrateur : un seul accès, « Administration » (le reste fait doublon avec /admin).
+  $('#authButton').classList.toggle('hidden', !!u); $('#logoutButton').classList.toggle('hidden', !client); $('#accountButton').classList.toggle('hidden', !client);
+  for (const id of ['#adminLink', '#drawerAdmin']) $(id).classList.toggle('hidden', !admin);
+  $('#drawerAuth').classList.toggle('hidden', admin); $$('[data-account]').forEach(a => a.classList.toggle('hidden', admin && !a.closest('.bottom-nav')));
+  $('#espace').classList.toggle('hidden', !client);
   $('#drawerAuth').textContent = t(u ? 'Déconnexion' : 'Se connecter'); $('#drawerHello').textContent = u ? t('Bonjour, {n}', { n: u.name.split(' ')[0] }) : '';
   renderGallery(); renderTestimonials();
 }
@@ -428,6 +432,7 @@ window.addEventListener('focus', onReturn); document.addEventListener('visibilit
 
 /* ---------- Espace client ---------- */
 async function refreshOrders() {
+  if (state.user?.role === 'admin') return;
   if (!state.user) { showLive(); $('#myOrders').innerHTML = `<div class="empty">${t('Connectez-vous pour consulter vos commandes.')}</div>`; $('#myRentals').innerHTML = ''; return; }
   try {
     const [orders, rentals] = await Promise.all([api('/api/orders'), api('/api/rentals')]); showLive(orders);
@@ -465,7 +470,7 @@ drawer.addEventListener('click', e => { if (e.target === drawer || e.target.clos
 $('#drawerLang').onclick = () => { setLang(lang === 'ht' ? 'fr' : 'ht'); };
 $('#drawerAuth').onclick = () => { openDrawer(false); if (state.user) $('#logoutButton').click(); else openModal(); };
 $('#accountButton').onclick = () => goAccount();
-function goAccount() { if (!state.user) { openModal(); return; } $('#espace').classList.remove('hidden'); $('#espace').scrollIntoView({ behavior: 'smooth' }); }
+function goAccount() { if (!state.user) { openModal(); return; } if (state.user.role === 'admin') { location.href = '/admin'; return; } $('#espace').classList.remove('hidden'); $('#espace').scrollIntoView({ behavior: 'smooth' }); }
 document.addEventListener('click', e => { const a = e.target.closest('[data-account]'); if (!a) return; e.preventDefault(); openDrawer(false); goAccount(); });
 // Raccourci actif selon la section visible.
 const secs = ['accueil', 'catalogue', 'commander', 'location', 'espace'].map(id => document.getElementById(id)).filter(Boolean);

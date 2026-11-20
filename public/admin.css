@@ -153,3 +153,11 @@ pre.log{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 }
 .todo li .badge{flex:0 0 auto}
 .kpis{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+
+/* V13 : un seul menu vertical (sous-sections intégrées) */
+#sideNav button.open{background:#ffffff1a;color:#fff}
+#sideNav .chev{margin-left:auto;opacity:.7;font-size:11px}
+#sideNav .badge+.chev{margin-left:6px}
+#sideNav .sub{display:flex;flex-direction:column;gap:2px;margin:2px 0 6px 22px;padding-left:10px;border-left:2px solid #ffffff26}
+#sideNav .sub button{padding:8px 10px;font-size:13px;font-weight:600;color:#d9c5e4}
+#sideNav .sub button.active{background:#fff;color:var(--p)}

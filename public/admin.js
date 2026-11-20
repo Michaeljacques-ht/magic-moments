@@ -83,21 +83,24 @@ const VIEWS = [
   { id: 'settings', ico: '⚙️', label: 'Paramètres' }
 ];
 const S = { view: 'dashboard', tab: {}, dash: null, settings: {}, period: { from: today().slice(0, 8) + '01', to: today() }, orderFilter: { q: '', status: 'open', pay: '' } };
+// Menu vertical unique : les sous-sections s'affichent sous la rubrique ouverte.
 function renderNav() {
-  $('#sideNav').innerHTML = VIEWS.map(v => { const n = S.dash && v.badge ? v.badge(S.dash) : 0; return `<button type="button" data-view="${v.id}" class="${v.id === S.view ? 'active' : ''}"><span class="ico">${v.ico}</span>${h(v.label)}${n ? `<span class="badge">${n}</span>` : ''}</button>`; }).join('');
+  $('#sideNav').innerHTML = VIEWS.map(v => {
+    const n = S.dash && v.badge ? v.badge(S.dash) : 0, open = v.id === S.view;
+    const subs = v.tabs && open ? `<div class="sub">${v.tabs.map(([k, l]) => `<button type="button" data-view="${v.id}" data-tab="${k}" class="${S.tab[v.id] === k ? 'active' : ''}">${h(l)}</button>`).join('')}</div>` : '';
+    return `<button type="button" data-view="${v.id}" class="${open && !v.tabs ? 'active' : open ? 'open' : ''}"><span class="ico">${v.ico}</span>${h(v.label)}${n ? `<span class="badge">${n}</span>` : ''}${v.tabs ? `<span class="chev">${open ? '▾' : '▸'}</span>` : ''}</button>${subs}`;
+  }).join('');
 }
-$('#sideNav').onclick = e => { const b = e.target.closest('button[data-view]'); if (b) go(b.dataset.view); };
+$('#sideNav').onclick = e => { const b = e.target.closest('button[data-view]'); if (!b) return; const v = VIEWS.find(x => x.id === b.dataset.view); go(b.dataset.view, b.dataset.tab, !!v.tabs && !b.dataset.tab); };
 $('#menuBtn').onclick = () => { $('#side').classList.add('open'); $('#backdrop').classList.add('show'); };
 $('#backdrop').onclick = () => { $('#side').classList.remove('open'); $('#backdrop').classList.remove('show'); };
-function go(view, tab) {
+function go(view, tab, keepMenu = false) {
   S.view = view; const v = VIEWS.find(x => x.id === view); if (tab) S.tab[view] = tab; if (v.tabs && !S.tab[view]) S.tab[view] = v.tabs[0][0];
-  $('#side').classList.remove('open'); $('#backdrop').classList.remove('show');
-  $('#viewTitle').textContent = v.label; $('#topActions').innerHTML = ''; renderNav();
-  $('#tabs').innerHTML = v.tabs ? v.tabs.map(([k, l]) => `<button type="button" data-tab="${k}" class="${S.tab[view] === k ? 'active' : ''}">${h(l)}</button>`).join('') : '';
+  if (!keepMenu) { $('#side').classList.remove('open'); $('#backdrop').classList.remove('show'); }
+  $('#viewTitle').textContent = v.tabs ? v.tabs.find(([k]) => k === S.tab[view])[1] : v.label; $('#topActions').innerHTML = ''; renderNav();
   try { history.replaceState(null, '', '#' + view + (v.tabs ? '/' + S.tab[view] : '')); } catch {}
   render();
 }
-$('#tabs').onclick = e => { const b = e.target.closest('button[data-tab]'); if (b) go(S.view, b.dataset.tab); };
 async function render() {
   const view = $('#view'); view.innerHTML = '<p class="empty">Chargement…</p>';
   try { await RENDER[S.view + (S.tab[S.view] ? ':' + S.tab[S.view] : '')]?.(view); } catch (e) { view.innerHTML = `<p class="warning">${h(e.message)}</p>`; }

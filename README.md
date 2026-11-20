@@ -98,3 +98,7 @@ Sans identifiants PlopPlop, le paiement manuel (lien + référence déclarée) r
 - Moins de défilement : sections « Nos atouts » et « Magic Live » fusionnées ailleurs, catalogue / réalisations / avis / matériel en carrousels horizontaux sur téléphone, configurateur ouvert sur la première dimension, formulaire de location replié, espace client affiché seulement une fois connecté.
 - Les fichiers privés (CV, pièces comptables) sont stockés dans le dossier de données et téléchargeables uniquement par l’administrateur.
 Données existantes conservées ; la photo d’accueil actuelle devient la première image du diaporama.
+
+## V13 — Administration : un seul menu vertical
+- La rangée d’onglets horizontaux est supprimée : les sous-sections (Surprises prêtes, Éléments, Annonces, Recrutement, Paie, Journal…) s’affichent dans le menu vertical, sous la rubrique ouverte. Le titre de la page indique la sous-section affichée.
+- Compte administrateur sur le site public : un seul bouton « Administration » (plus de « Mon espace », « Bonjour… », « Déconnexion » ni d’espace client en doublon). Un administrateur qui se connecte depuis le site arrive directement dans /admin ; le raccourci « Compte » du téléphone y mène aussi.
