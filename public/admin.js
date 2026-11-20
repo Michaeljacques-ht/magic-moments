@@ -77,9 +77,10 @@ const VIEWS = [
   { id: 'orders', ico: '🧾', label: 'Commandes', badge: d => d.orders_pending + d.payments_to_check },
   { id: 'rentals', ico: '🪑', label: 'Locations', badge: d => d.rentals_pending },
   { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location']] },
-  { id: 'content', ico: '🖼️', label: 'Site et contenu', tabs: [['contact', 'Coordonnées'], ['slides', 'Diaporama d’accueil'], ['announcements', 'Annonces'], ['gallery', 'Réalisations'], ['testimonials', 'Témoignages']] },
+  { id: 'content', ico: '🖼️', label: 'Site et contenu', tabs: [['contact', 'Coordonnées'], ['slides', 'Diaporama d’accueil'], ['announcements', 'Annonces'], ['gallery', 'Réalisations'], ['testimonials', 'Témoignages'], ['faq', 'FAQ']] },
   { id: 'hr', ico: '👥', label: 'Ressources humaines', badge: d => d.applications_new, tabs: [['recruit', 'Recrutement'], ['staff', 'Personnel'], ['payroll', 'Paie et avances']] },
   { id: 'accounting', ico: '📒', label: 'Comptabilité', tabs: [['summary', 'Synthèse'], ['journal', 'Journal'], ['accounts', 'Comptes']] },
+  { id: 'traffic', ico: '📍', label: 'Visites et connexions' },
   { id: 'settings', ico: '⚙️', label: 'Paramètres' }
 ];
 const S = { view: 'dashboard', tab: {}, dash: null, settings: {}, period: { from: today().slice(0, 8) + '01', to: today() }, orderFilter: { q: '', status: 'open', pay: '' } };
@@ -195,7 +196,7 @@ document.addEventListener('click', safe(async e => {
 /* ============ Locations ============ */
 RENDER.rentals = async view => {
   const rentals = await api('/api/rentals');
-  view.innerHTML = rentals.length ? `<table class="table"><thead><tr><th>Matériel</th><th>Quantité</th><th>Ville</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>${rentals.map(r => `<tr><td data-l="Matériel"><b>${h(r.equipment_name)}</b></td><td data-l="Quantité">${r.quantity}</td><td data-l="Ville">${h(r.city)}</td><td data-l="Période">${h(fmtDT(r.start_at))} → ${h(fmtDT(r.end_at))}</td>
+  view.innerHTML = rentals.length ? `<table class="table"><thead><tr><th>Matériel</th><th>Estimation</th><th>Lieu</th><th>Période</th><th>Statut</th><th></th></tr></thead><tbody>${rentals.slice().reverse().map(r => `<tr><td data-l="Matériel">${r.items ? r.items.map(x => `<b>${h(x.name)}</b> × ${x.quantity}`).join('<br>') : `<b>${h(r.equipment_name)}</b> × ${r.quantity}`}${r.note ? `<br><span class="muted">« ${h(r.note)} »</span>` : ''}</td><td data-l="Estimation">${r.estimate ? money(r.estimate) + `<br><span class="muted">${r.days} jour(s)</span>` : '—'}</td><td data-l="Lieu">${h(r.city)}${r.address ? `<br><span class="muted">${h(r.address)}</span>` : ''}</td><td data-l="Période">${h(fmtDT(r.start_at))} → ${h(fmtDT(r.end_at))}</td>
     <td data-l="Statut"><select data-rid="${r.id}">${['pending', 'confirmed', 'completed', 'cancelled'].map(v => `<option value="${v}" ${v === r.status ? 'selected' : ''}>${LABELS[v]}</option>`).join('')}</select></td><td><button class="btn sm primary save-rental" data-id="${r.id}">OK</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune demande de location.</p>';
   view.querySelectorAll('.save-rental').forEach(b => b.onclick = safe(async () => { await post('/api/admin/rentals/' + b.dataset.id, { status: view.querySelector(`[data-rid="${b.dataset.id}"]`).value }, 'PATCH'); toast('Location mise à jour'); refreshDash(); }));
 };
@@ -294,10 +295,12 @@ RENDER['catalog:categories'] = async view => {
 RENDER['catalog:equipment'] = async view => {
   const eq = await api('/api/admin/equipment');
   actions('<button class="btn primary" id="newEq">＋ Nouveau matériel</button>');
-  const form = x => openForm({ title: x ? x.name : 'Nouveau matériel', fields: [[{ name: 'name', label: 'Nom', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }], [{ name: 'stock', label: 'Stock disponible', type: 'number', min: 0, required: true }, { name: 'daily_price_htg', label: 'Prix par jour (HTG)', type: 'number', min: 1, required: true }], { name: 'active', label: 'Proposé à la location', type: 'checkbox', checked: true }],
-    values: x ? { ...x, daily_price_htg: x.needs_price ? '' : x.daily_price_htg, active: x.active !== false || !!x.needs_price } : { active: true }, onSubmit: async v => { await post('/api/admin/equipment', { ...v, id: x?.id }); toast('Matériel enregistré'); refreshDash(); render(); } });
+  const form = x => { const media = { photo: x?.photo || '' }; openForm({ title: x ? x.name : 'Nouveau matériel', fields: [[{ name: 'name', label: 'Nom', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }], [{ name: 'stock', label: 'Stock disponible', type: 'number', min: 0, required: true }, { name: 'daily_price_htg', label: 'Prix par jour (HTG)', type: 'number', min: 1, required: true }], { name: 'active', label: 'Proposé à la location', type: 'checkbox', checked: true }],
+    extra: '<div class="section-box"><b>Vignette (photo du matériel)</b><input type="file" id="qFile" accept="image/*"><div class="thumbs" id="qThumb"></div></div>',
+    onRender: () => { const draw = () => { $('#qThumb').innerHTML = media.photo ? thumbHTML(media.photo, 'q') : '<span class="muted">Aucune vignette : la carte affiche un pictogramme.</span>'; }; draw(); $('#qThumb').onclick = e => { if (e.target.dataset.rm) { media.photo = ''; draw(); } }; $('#qFile').onchange = safe(async e => { const f = e.target.files[0]; if (f) { toast('Envoi…'); media.photo = await uploadImage(f); draw(); toast('Vignette ajoutée'); } }); },
+    values: x ? { ...x, daily_price_htg: x.needs_price ? '' : x.daily_price_htg, active: x.active !== false || !!x.needs_price } : { active: true }, onSubmit: async v => { await post('/api/admin/equipment', { ...v, id: x?.id, photo: media.photo }); toast('Matériel enregistré'); refreshDash(); render(); } }); };
   $('#newEq').onclick = () => form(null);
-  view.innerHTML = `<table class="table"><thead><tr><th>Matériel</th><th class="num">Stock</th><th class="num">Prix / jour</th><th>Statut</th></tr></thead><tbody>${eq.map(x => `<tr class="clickable" data-id="${x.id}"><td><b>${h(x.name)}</b></td><td class="num" data-l="Stock">${x.stock}</td><td class="num" data-l="Prix">${x.needs_price ? '—' : money(x.daily_price_htg)}</td><td>${statusPill(x)}</td></tr>`).join('')}</tbody></table>`;
+  view.innerHTML = `<table class="table"><thead><tr><th></th><th>Matériel</th><th class="num">Stock</th><th class="num">Prix / jour</th><th>Statut</th></tr></thead><tbody>${eq.map(x => `<tr class="clickable" data-id="${x.id}"><td>${visual(x.photo, '🪑')}</td><td><b>${h(x.name)}</b></td><td class="num" data-l="Stock">${x.stock}</td><td class="num" data-l="Prix">${x.needs_price ? '—' : money(x.daily_price_htg)}</td><td>${statusPill(x)}</td></tr>`).join('')}</tbody></table>`;
   view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(eq.find(x => x.id === tr.dataset.id)));
 };
 
@@ -506,6 +509,39 @@ RENDER['accounting:accounts'] = async view => {
   $('#newAcc').onclick = () => form(null);
   view.innerHTML = `<table class="table"><thead><tr><th>Compte</th><th class="num">Solde d’ouverture</th><th class="num">Solde au ${h(fmtDate(ACC.to))}</th></tr></thead><tbody>${ACC.accounts.map(a => `<tr class="clickable" data-id="${a.id}"><td><b>${h(a.name)}</b></td><td class="num" data-l="Ouverture">${money(a.opening)}</td><td class="num" data-l="Solde">${money(a.balance)}</td></tr>`).join('')}</tbody></table>`;
   view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(ACC.accounts.find(a => a.id === tr.dataset.id)));
+};
+
+
+/* ============ Visites et connexions ============ */
+S.traffic = { from: new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10), to: today(), tab: 'visits' };
+const topList = (rows, total) => rows.length ? `<table class="table"><tbody>${rows.slice(0, 8).map(r => `<tr><td>${h(r.k)}</td><td class="num">${r.n} <span class="muted">(${Math.round(r.n / Math.max(1, total) * 100)} %)</span></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune donnée.</p>';
+RENDER.traffic = async view => {
+  const T = S.traffic, d = await api(`/api/admin/traffic?from=${T.from}&to=${T.to}`);
+  actions(`<label style="margin:0">Du<input type="date" id="tFrom" value="${T.from}"></label><label style="margin:0">Au<input type="date" id="tTo" value="${T.to}"></label><a class="btn line" style="margin-top:18px" href="/api/admin/traffic/export?kind=${T.tab}&from=${T.from}&to=${T.to}">⬇ Export Excel (CSV)</a>`);
+  $('#tFrom').onchange = $('#tTo').onchange = () => { T.from = $('#tFrom').value; T.to = $('#tTo').value; render(); };
+  const max = Math.max(1, ...d.days.map(x => x[1]));
+  view.innerHTML = `<p class="muted">Visites enregistrées uniquement pour les visiteurs qui acceptent les cookies de mesure d’audience. Les connexions aux comptes sont toujours enregistrées (sécurité). Localisation approximative, à partir de l’adresse IP ou du fuseau horaire.</p>
+    <div class="kpis"><div class="kpi accent"><small>Visites</small><strong>${d.total}</strong></div><div class="kpi"><small>Visiteurs uniques</small><strong>${d.unique}</strong></div><div class="kpi"><small>Pages vues</small><strong>${d.pages}</strong></div><div class="kpi"><small>Connexions aux comptes</small><strong>${d.logins_total}</strong></div></div>
+    <div class="card" style="margin-bottom:16px"><h3>📈 Visites par jour</h3>${d.days.length ? `<div class="bars">${d.days.slice(-31).map(([k, n]) => `<div class="bar"><div class="cols"><div class="in" style="width:70%;max-width:26px;height:${n / max * 100}%" title="${n} visite(s)"></div></div><small>${k.slice(8)}</small></div>`).join('')}</div>` : '<p class="empty">Aucune visite sur la période.</p>'}</div>
+    <div class="cards"><div class="card"><h3>🌍 Pays</h3>${topList(d.countries, d.total)}</div><div class="card"><h3>🏙️ Villes</h3>${topList(d.cities, d.total)}</div><div class="card"><h3>📱 Appareils</h3>${topList(d.devices, d.total)}<h3 style="margin-top:14px">💻 Systèmes</h3>${topList(d.os, d.total)}</div><div class="card"><h3>🌐 Navigateurs</h3>${topList(d.browsers, d.total)}</div><div class="card"><h3>🔗 Provenance</h3>${topList(d.sources, d.total)}</div></div>
+    <div class="toolbar" style="margin-top:18px"><button class="btn ${T.tab === 'visits' ? 'primary' : 'line'}" data-ttab="visits">Dernières visites</button><button class="btn ${T.tab === 'logins' ? 'primary' : 'line'}" data-ttab="logins">Connexions aux comptes</button></div>
+    ${T.tab === 'visits' ? (d.visits.length ? `<table class="table"><thead><tr><th>Date et heure</th><th>Lieu</th><th>Appareil</th><th>Navigateur</th><th>Pages</th><th>Provenance</th></tr></thead><tbody>${d.visits.map(v => `<tr><td data-l="Date">${h(fmtDT(v.at))}${v.returning ? ' <span class="pill">déjà venu</span>' : ''}${v.user_name ? `<br><span class="muted">${h(v.user_name)}</span>` : ''}</td><td data-l="Lieu">${h([v.city, v.region, v.country].filter(Boolean).join(', ') || 'Inconnu')}${v.geo === 'fuseau' ? ' <span class="muted">(fuseau)</span>' : ''}</td><td data-l="Appareil">${h(v.device)}${v.model ? ' · ' + h(v.model) : ''}<br><span class="muted">${h(v.os)}</span></td><td data-l="Navigateur">${h(v.browser)}</td><td data-l="Pages">${v.pages || 1}</td><td data-l="Provenance">${h(v.ref || 'Accès direct')}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune visite.</p>')
+      : (d.logins.length ? `<table class="table"><thead><tr><th>Date et heure</th><th>Compte</th><th>Lieu</th><th>Appareil</th><th>Adresse IP</th></tr></thead><tbody>${d.logins.map(l => `<tr><td data-l="Date">${h(fmtDT(l.at))}</td><td data-l="Compte"><b>${h(l.name)}</b> ${l.role === 'admin' ? '<span class="pill warn">admin</span>' : ''}<br><span class="muted">${h(l.email)}</span></td><td data-l="Lieu">${h([l.city, l.country].filter(Boolean).join(', ') || 'Inconnu')}</td><td data-l="Appareil">${h(l.device)}${l.model ? ' · ' + h(l.model) : ''}<br><span class="muted">${h(l.os)} · ${h(l.browser)}</span></td><td data-l="IP">${h(l.ip)}</td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucune connexion.</p>')}`;
+  view.querySelectorAll('[data-ttab]').forEach(b => b.onclick = () => { T.tab = b.dataset.ttab; render(); });
+};
+
+/* ============ FAQ ============ */
+RENDER['content:faq'] = async view => {
+  const list = await api('/api/admin/faq'), cats = [...new Set(list.map(f => f.category))];
+  actions('<a class="btn line" href="/faq" target="_blank" rel="noopener">Voir la page FAQ ↗</a><button class="btn primary" id="newFaq">＋ Nouvelle question</button>');
+  const form = f => openForm({ title: f ? 'Modifier la question' : 'Nouvelle question', remove: f && (async () => { await post('/api/admin/faq/remove', { id: f.id }); toast('Question supprimée'); render(); }),
+    fields: [[{ name: 'category', label: 'Rubrique', required: true, placeholder: 'Ex. Paiement' }, { name: 'order', label: 'Ordre d’affichage', type: 'number', min: 0 }], { name: 'q', label: 'Question', required: true }, { name: 'a', label: 'Réponse', type: 'textarea', rows: 4, required: true }, { name: 'q_ht', label: 'Question (kreyòl)' }, { name: 'a_ht', label: 'Réponse (kreyòl)', type: 'textarea', rows: 4 }, { name: 'active', label: 'Publiée', type: 'checkbox', checked: true }],
+    values: f || { active: true, order: list.length, category: cats[0] || '' }, extra: `<datalist id="faqCats">${cats.map(c => `<option value="${h(c)}">`).join('')}</datalist>`,
+    onRender: fm => fm.elements.category.setAttribute('list', 'faqCats'),
+    onSubmit: async v => { await post('/api/admin/faq', { ...v, id: f?.id, order: v.order ?? 0 }); toast('Question enregistrée'); render(); } });
+  $('#newFaq').onclick = () => form(null);
+  view.innerHTML = cats.map(c => `<h3 style="margin:16px 0 8px">${h(c)}</h3><table class="table"><tbody>${list.filter(f => f.category === c).map(f => `<tr class="clickable" data-id="${f.id}"><td><b>${h(f.q)}</b><br><span class="muted">${h(f.a.slice(0, 120))}${f.a.length > 120 ? '…' : ''}</span></td><td>${f.q_ht ? '' : '<span class="pill warn">kreyòl</span>'} ${f.active ? '<span class="pill ok">Publiée</span>' : '<span class="pill grey">Masquée</span>'}</td></tr>`).join('')}</tbody></table>`).join('') || '<p class="empty">Aucune question.</p>';
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(list.find(f => f.id === tr.dataset.id)));
 };
 
 /* ============ Paramètres ============ */

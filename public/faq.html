@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#37004d">
+<meta name="description" content="Questions fréquentes Magic Moments : commandes, paiement, livraison, diaspora, location, Magic Live, cookies.">
+<title>FAQ — Magic Moments</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head>
+<body class="faq-page">
+<header class="header">
+  <div class="wrap nav">
+    <a class="brand logo-link" href="/"><img class="logo-img" src="/logo-header.png" alt="Magic Moments" width="346" height="150"></a>
+    <div class="nav-actions">
+      <button type="button" id="langToggle" class="btn btn-outline lang-toggle">Kreyòl</button>
+      <a class="btn btn-outline" href="/">← Retour au site</a>
+    </div>
+  </div>
+</header>
+<main class="section">
+  <div class="wrap faq-wrap">
+    <div class="eyebrow dark">FAQ</div>
+    <h1 class="faq-title">Questions fréquentes</h1>
+    <input id="faqSearch" class="faq-search" type="search" placeholder="Rechercher une question…" aria-label="Rechercher une question…">
+    <div id="faqCats" class="dim-tabs" data-dyn></div>
+    <div id="faqList" class="faq-list" data-dyn></div>
+    <div class="faq-help">
+      <h2>Vous ne trouvez pas votre réponse ?</h2>
+      <p>Écrivez-nous, nous répondons rapidement.</p>
+      <div class="actions" id="faqContact" data-dyn></div>
+      <p class="faq-cookie"><button type="button" class="linkbtn" id="faqCookies">Modifier mes choix de cookies</button> <span id="faqCookieState" data-dyn></span></p>
+    </div>
+  </div>
+</main>
+<div id="toast" class="toast hidden" role="status"></div>
+<script type="module" src="/faq.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@
    ============================================================ */
 import fs from 'node:fs';
 import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 
 export const HANDLED = Symbol('handled');
 
@@ -255,5 +256,111 @@ export async function adminRoutes(ctx, { m, p, b, u, req, res, json }) {
     const old = b.id ? find(db.accounts, b.id) : null, a = { id: old?.id || id(), name: b.name.trim(), opening: b.opening };
     commit(() => { if (old) Object.assign(old, a); else db.accounts.push(a); }); return done(a);
   }
+  return null;
+}
+
+/* ============================================================
+   Visites et connexions (pays, ville, heure, appareil)
+   - Visites : enregistrées seulement si le visiteur accepte les cookies.
+   - Connexions aux comptes : toujours enregistrées (sécurité).
+   La localisation vient de l'adresse IP (service ipwho.is, désactivable
+   avec GEO_LOOKUP=off), sinon du fuseau horaire du navigateur.
+   ============================================================ */
+const TZ_COUNTRY = { 'America/Port-au-Prince': 'Haïti', 'America/New_York': 'États-Unis', 'America/Chicago': 'États-Unis', 'America/Denver': 'États-Unis', 'America/Los_Angeles': 'États-Unis', 'America/Phoenix': 'États-Unis', 'America/Detroit': 'États-Unis', 'America/Indiana/Indianapolis': 'États-Unis', 'America/Toronto': 'Canada', 'America/Montreal': 'Canada', 'America/Vancouver': 'Canada', 'America/Edmonton': 'Canada', 'America/Halifax': 'Canada', 'America/Winnipeg': 'Canada', 'Europe/Paris': 'France', 'Europe/Brussels': 'Belgique', 'Europe/Zurich': 'Suisse', 'Europe/London': 'Royaume-Uni', 'Europe/Madrid': 'Espagne', 'America/Santo_Domingo': 'République dominicaine', 'America/Sao_Paulo': 'Brésil', 'America/Santiago': 'Chili', 'America/Mexico_City': 'Mexique', 'America/Cayenne': 'Guyane', 'America/Guadeloupe': 'Guadeloupe', 'America/Martinique': 'Martinique', 'America/Nassau': 'Bahamas', 'America/Panama': 'Panama', 'America/Havana': 'Cuba', 'America/Puerto_Rico': 'Porto Rico', 'America/Jamaica': 'Jamaïque' };
+const geoCache = new Map();
+const isPrivateIp = ip => !ip || /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|::1|fc|fd|fe80|::ffff:127\.|::ffff:10\.|::ffff:192\.168\.)/i.test(ip);
+const maskIp = ip => !ip ? '' : ip.includes('.') ? ip.replace(/\.\d+$/, '.0') : ip.split(':').slice(0, 3).join(':') + '::';
+async function geoLookup(ip) {
+  if (process.env.GEO_LOOKUP === 'off' || isPrivateIp(ip)) return null;
+  const c = geoCache.get(ip); if (c && c.t > Date.now() - 864e5) return c.v;
+  try {
+    const r = await fetch(`https://ipwho.is/${encodeURIComponent(ip)}?fields=success,country,region,city&lang=fr`, { signal: AbortSignal.timeout(4000) });
+    const j = await r.json(); const v = j.success ? { country: j.country || '', region: j.region || '', city: j.city || '' } : null;
+    if (geoCache.size > 5000) geoCache.clear(); geoCache.set(ip, { t: Date.now(), v }); return v;
+  } catch { return null; }
+}
+export function parseUA(ua = '') {
+  const os = /Android/i.test(ua) ? 'Android' : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Windows/i.test(ua) ? 'Windows' : /Mac OS X|Macintosh/i.test(ua) ? 'macOS' : /CrOS/i.test(ua) ? 'ChromeOS' : /Linux/i.test(ua) ? 'Linux' : 'Autre';
+  const browser = /SamsungBrowser/i.test(ua) ? 'Samsung Internet' : /OPR\/|Opera/i.test(ua) ? 'Opera' : /Edg\//i.test(ua) ? 'Edge' : /FBAN|FBAV|Instagram|WhatsApp/i.test(ua) ? 'Application (Facebook, WhatsApp…)' : /Firefox|FxiOS/i.test(ua) ? 'Firefox' : /Chrome|CriOS/i.test(ua) ? 'Chrome' : /Safari/i.test(ua) ? 'Safari' : 'Autre';
+  const device = /iPad|Tablet/i.test(ua) || (/Android/i.test(ua) && !/Mobile/i.test(ua)) ? 'Tablette' : /Mobi|iPhone|Android/i.test(ua) ? 'Téléphone' : /bot|crawl|spider|preview/i.test(ua) ? 'Robot' : 'Ordinateur';
+  const model = (/Android [\d.]+; ([^;)]+)/i.exec(ua)?.[1] || (/iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : '')).replace(/Build.*$/, '').trim().slice(0, 60);
+  return { device, os, browser, model };
+}
+function locate(ctx, rec, ip) {
+  geoLookup(ip).then(g => { if (!g) return; try { ctx.commit(() => { Object.assign(rec, { country: g.country || rec.country, region: g.region, city: g.city || rec.city, geo: 'ip' }); }); } catch {} });
+}
+function trim(db) {
+  const limit = Date.now() - 180 * 864e5;
+  if (db.visits.length > 20000 || (db.visits[0] && Date.parse(db.visits[0].at) < limit)) db.visits = db.visits.filter(v => Date.parse(v.last_at || v.at) >= limit).slice(-20000);
+  if (db.logins.length > 10000) db.logins = db.logins.slice(-10000);
+}
+export function logLogin(ctx, req, u) {
+  const db = ctx.db, ip = ctx.clientIp(req), ua = String(req.headers['user-agent'] || '').slice(0, 300);
+  const rec = { id: ctx.id(), at: ctx.now(), user_id: u.id, name: u.name, email: u.email, role: u.role, ip, ...parseUA(ua), ua, country: '', city: '', geo: '' };
+  db.logins ??= []; db.logins.push(rec); trim(db); locate(ctx, rec, ip);
+}
+export function migrateTraffic(db) {
+  db.visits ??= []; db.logins ??= []; db.faq ??= null;
+  if (db.faq === null) db.faq = DEFAULT_FAQ.map((f, i) => ({ id: randomUUID(), order: i, active: true, ...f }));
+}
+
+/* ---------- FAQ par défaut (modifiable dans l'administration) ---------- */
+const DEFAULT_FAQ = [
+  { category: 'Commandes', q: 'Comment commander une surprise ?', q_ht: 'Kijan pou m kòmande yon sipriz ?', a: 'Choisissez une surprise prête dans « Nos surprises » ou composez la vôtre dans « Créer une surprise », puis indiquez vos coordonnées, celles de la personne à surprendre et la date de livraison. Notre équipe vous recontacte pour confirmer.', a_ht: 'Chwazi yon sipriz ki pare nan « Sipriz nou yo » oswa konpoze pa w nan « Kreye yon sipriz », epi mete enfòmasyon ou, enfòmasyon moun w ap fè sipriz la ak dat livrezon an. Ekip nou an ap kontakte w pou konfime.' },
+  { category: 'Commandes', q: 'Dois-je créer un compte pour commander ?', q_ht: 'Èske m bezwen kreye yon kont pou m kòmande ?', a: 'Non. Vous pouvez envoyer une demande sans compte. Un compte vous permet en plus de suivre vos commandes, vos reçus et vos liens Magic Live. Un compte est nécessaire pour louer du matériel.', a_ht: 'Non. Ou ka voye yon demann san kont. Yon kont pèmèt ou swiv kòmand ou, resi ou ak lyen Magic Live ou yo. Ou bezwen yon kont pou lwe materyèl.' },
+  { category: 'Commandes', q: 'Combien de temps à l’avance dois-je commander ?', q_ht: 'Konbyen tan davans pou m kòmande ?', a: 'Le délai est indiqué sur chaque surprise. Plus vous commandez tôt, plus nous pouvons respecter vos choix (couleurs, saveurs, décoration), surtout pendant les fêtes.', a_ht: 'Delè a ekri sou chak sipriz. Plis ou kòmande bonè, plis nou ka respekte chwa ou (koulè, gou, dekorasyon), sitou nan peryòd fèt yo.' },
+  { category: 'Paiement', q: 'Quand et comment dois-je payer ?', q_ht: 'Kilè e kijan pou m peye ?', a: 'Aucun paiement n’est demandé à l’envoi de la demande. Une fois la commande confirmée par notre équipe, vous recevez un lien de paiement sécurisé PlopPlop (MonCash, NatCash ou Kashpaw).', a_ht: 'Nou pa mande w peye lè w voye demann lan. Lè ekip nou an fin konfime kòmand lan, ou resevwa yon lyen peman sekirize PlopPlop (MonCash, NatCash oswa Kashpaw).' },
+  { category: 'Paiement', q: 'Le montant affiché est-il définitif ?', q_ht: 'Èske montan ki parèt la se montan final la ?', a: 'Le montant affiché est une estimation. Notre équipe confirme le montant final avant tout paiement, selon la disponibilité et vos demandes particulières.', a_ht: 'Montan ki parèt la se yon estimasyon. Ekip nou an konfime montan final la anvan ou peye anyen, selon disponiblite ak demann espesyal ou yo.' },
+  { category: 'Diaspora', q: 'Je vis à l’étranger : puis-je faire une surprise à un proche en Haïti ?', q_ht: 'Mwen rete aletranje : èske m ka fè yon moun ann Ayiti sipriz ?', a: 'Oui. Commandez depuis le site, payez en ligne une fois la commande confirmée, et recevez photos et vidéo de la remise. Avec Magic Live, vous pouvez même suivre la surprise en direct.', a_ht: 'Wi. Kòmande sou sit la, peye sou entènèt lè kòmand lan fin konfime, epi resevwa foto ak videyo moman an. Avèk Magic Live, ou ka menm swiv sipriz la an dirèk.' },
+  { category: 'Livraison', q: 'Dans quelles villes livrez-vous ?', q_ht: 'Nan ki vil nou livre ?', a: 'La zone desservie est indiquée dans la section Contact. Pour une autre ville, écrivez-nous sur WhatsApp : nous vous dirons si c’est possible et à quelles conditions.', a_ht: 'Zòn nou sèvi a ekri nan seksyon Kontak la. Pou yon lòt vil, ekri nou sou WhatsApp : n ap di w si sa posib ak nan ki kondisyon.' },
+  { category: 'Location', q: 'Puis-je louer plusieurs matériels dans une même demande ?', q_ht: 'Èske m ka lwe plizyè materyèl nan yon sèl demann ?', a: 'Oui. Ajoutez chaque matériel avec sa quantité, choisissez les dates : l’estimation se calcule automatiquement. L’équipe vérifie les disponibilités et vous confirme.', a_ht: 'Wi. Ajoute chak materyèl ak kantite li, chwazi dat yo : estimasyon an kalkile otomatikman. Ekip la verifye disponiblite yo epi l konfime w.' },
+  { category: 'Magic Live', q: 'Qu’est-ce que Magic Live ?', q_ht: 'Kisa Magic Live ye ?', a: 'Un direct vidéo privé de la surprise. Cochez l’option lors de la commande ; une fois confirmé, le lien apparaît dans votre espace client.', a_ht: 'Se yon dirèk videyo prive sipriz la. Make opsyon an lè w ap kòmande ; lè sa konfime, lyen an ap parèt nan espas kliyan ou.' },
+  { category: 'Compte et confidentialité', q: 'Quels cookies utilisez-vous ?', q_ht: 'Ki bonbon (cookies) nou itilize ?', a: 'Un cookie nécessaire garde votre session ouverte. Si vous l’acceptez, un cookie de mesure d’audience nous permet de connaître le pays, la ville approximative (à partir de l’adresse IP), l’heure et le type d’appareil des visites, pour améliorer le site. Vous pouvez changer votre choix à tout moment avec le lien « Cookies » en bas de page.', a_ht: 'Yon bonbon nesesè kenbe sesyon ou louvri. Si w aksepte l, yon bonbon pou mezire odyans pèmèt nou konnen peyi, vil apeprè (selon adrès IP a), lè ak kalite aparèy vizit yo, pou nou amelyore sit la. Ou ka chanje chwa ou nenpòt lè ak lyen « Bonbon » anba paj la.' },
+  { category: 'Compte et confidentialité', q: 'J’ai oublié mon mot de passe.', q_ht: 'Mwen bliye modpas mwen.', a: 'Cliquez sur « Se connecter », puis « Mot de passe oublié ? ». Vous recevez par courriel un lien valable une heure pour en choisir un nouveau.', a_ht: 'Klike sou « Konekte », epi « Ou bliye modpas ou ? ». W ap resevwa yon lyen pa imèl ki bon pou inèdtan pou w chwazi yon nouvo.' }
+];
+
+export async function trafficPublic(ctx, { m, p, b, req, u, json }) {
+  if (m === 'GET' && p === '/api/faq') return json(ctx.db.faq.filter(f => f.active).sort((a, b) => a.order - b.order).map(({ id, category, q, q_ht, a, a_ht }) => ({ id, category, q, q_ht, a, a_ht }))), HANDLED;
+  if (m === 'POST' && p === '/api/visit') {
+    // Uniquement avec consentement ; un visiteur = un identifiant aléatoire (cookie mm_vid).
+    const vid = /mm_vid=([a-f0-9-]{36})/.exec(req.headers.cookie || '')?.[1];
+    if (!/mm_consent=yes/.test(req.headers.cookie || '') || !vid) return json({ ok: false }), HANDLED;
+    const db = ctx.db, at = ctx.now(), page = String(b.page || '/').slice(0, 120), tz = String(b.tz || '').slice(0, 60);
+    const last = [...db.visits].reverse().find(v => v.vid === vid);
+    if (last && Date.now() - Date.parse(last.last_at || last.at) < 30 * 60000) { ctx.commit(() => { last.last_at = at; last.pages = (last.pages || 1) + 1; if (u && !last.user_name) last.user_name = u.name; }); return json({ ok: true }), HANDLED; }
+    const ip = ctx.clientIp(req), ua = String(req.headers['user-agent'] || '').slice(0, 300), info = parseUA(ua);
+    if (info.device === 'Robot') return json({ ok: false }), HANDLED;
+    const rec = { id: ctx.id(), vid, at, last_at: at, pages: 1, page, ref: String(b.ref || '').replace(/^https?:\/\//, '').slice(0, 120), lang: b.lang === 'ht' ? 'ht' : 'fr', tz, ip: maskIp(ip), ...info, country: TZ_COUNTRY[tz] || '', city: tz.includes('/') ? tz.split('/').pop().replace(/_/g, ' ') : '', geo: TZ_COUNTRY[tz] ? 'fuseau' : '', screen: String(b.screen || '').slice(0, 20), user_name: u?.name || '', returning: db.visits.some(v => v.vid === vid) };
+    ctx.commit(() => { db.visits.push(rec); trim(db); }); locate(ctx, rec, ip);
+    return json({ ok: true }), HANDLED;
+  }
+  return null;
+}
+
+const count = (list, key) => Object.entries(list.reduce((a, x) => { const k = (typeof key === 'function' ? key(x) : x[key]) || 'Inconnu'; a[k] = (a[k] || 0) + 1; return a; }, {})).sort((a, b) => b[1] - a[1]).map(([k, n]) => ({ k, n }));
+export async function trafficAdmin(ctx, { m, p, b, req, res, json }) {
+  const db = ctx.db, { err, str, find, commit, id } = ctx;
+  if (m === 'GET' && (p === '/api/admin/traffic' || p === '/api/admin/traffic/export')) {
+    const q = new URL(req.url, 'http://x').searchParams, from = day(q.get('from')) ? q.get('from') : new Date(Date.now() - 29 * 864e5).toISOString().slice(0, 10), to = day(q.get('to')) ? q.get('to') : today();
+    const inR = x => x.at.slice(0, 10) >= from && x.at.slice(0, 10) <= to, visits = db.visits.filter(inR), logins = db.logins.filter(inR);
+    if (p.endsWith('/export')) {
+      const kind = q.get('kind') === 'logins' ? 'logins' : 'visits';
+      const rows = kind === 'logins' ? [['Date et heure (UTC)', 'Nom', 'Courriel', 'Rôle', 'Pays', 'Ville', 'Appareil', 'Modèle', 'Système', 'Navigateur', 'Adresse IP']].concat(logins.map(l => [l.at, l.name, l.email, l.role, l.country, l.city, l.device, l.model, l.os, l.browser, l.ip]))
+        : [['Date et heure (UTC)', 'Dernière activité', 'Pages', 'Pays', 'Région', 'Ville', 'Source localisation', 'Appareil', 'Modèle', 'Système', 'Navigateur', 'Langue', 'Provenance', 'Visiteur connu', 'Client connecté', 'IP (anonymisée)']].concat(visits.map(v => [v.at, v.last_at, v.pages, v.country, v.region, v.city, v.geo, v.device, v.model, v.os, v.browser, v.lang, v.ref, v.returning ? 'oui' : 'non', v.user_name, v.ip]));
+      res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="${kind}-magic-moments-${from}-${to}.csv"`, 'Cache-Control': 'no-store' });
+      res.end('﻿' + rows.map(r => r.map(csvCell).join(';')).join('\r\n')); return HANDLED;
+    }
+    const byDay = {}; for (const v of visits) { const k = v.at.slice(0, 10); byDay[k] = (byDay[k] || 0) + 1; }
+    return json({ from, to, total: visits.length, unique: new Set(visits.map(v => v.vid)).size, pages: visits.reduce((a, v) => a + (v.pages || 1), 0), logins_total: logins.length,
+      countries: count(visits, 'country'), cities: count(visits, v => [v.city, v.country].filter(Boolean).join(', ')), devices: count(visits, 'device'), os: count(visits, 'os'), browsers: count(visits, 'browser'), sources: count(visits, v => v.ref || 'Accès direct'),
+      days: Object.entries(byDay).sort(), visits: visits.slice(-300).reverse(), logins: logins.slice(-300).reverse() }), HANDLED;
+  }
+  if (m === 'GET' && p === '/api/admin/faq') return json(db.faq.slice().sort((a, b) => a.order - b.order)), HANDLED;
+  if (m === 'POST' && p === '/api/admin/faq') {
+    if (!str(b.q, 5, 240) || !str(b.a, 5, 3000) || !str(b.q_ht ?? '', 0, 240) || !str(b.a_ht ?? '', 0, 3000) || !str(b.category, 2, 60) || !Number.isInteger(b.order ?? 0)) err(400, 'Question invalide : question, réponse et rubrique requises');
+    const old = b.id ? find(db.faq, b.id) : null, f = { id: old?.id || id(), category: b.category.trim(), q: b.q.trim(), q_ht: (b.q_ht || '').trim(), a: b.a.trim(), a_ht: (b.a_ht || '').trim(), order: b.order ?? (db.faq.length), active: b.active !== false };
+    commit(() => { if (old) Object.assign(old, f); else db.faq.push(f); }); return json(f), HANDLED;
+  }
+  if (m === 'POST' && p === '/api/admin/faq/remove') { const f = find(db.faq, b.id); commit(() => { db.faq = db.faq.filter(x => x !== f); }); return json({ ok: true }), HANDLED; }
   return null;
 }

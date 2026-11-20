@@ -347,28 +347,67 @@ $('#orderForm').onsubmit = async e => {
   } catch (err) { toast(err.message); } finally { btn.disabled = false; }
 };
 
-/* ---------- Location ---------- */
+/* ---------- Location : plusieurs matériels par demande ---------- */
+state.rentalLines = []; // [{ id, qty }]
+const eqById = id => state.equipment.find(x => x.id === id);
 function renderEquipment() {
-  $('#equipmentGrid').innerHTML = state.equipment.map(e => `<button type="button" class="equipment-item" data-eq="${escapeHTML(e.id)}"><h3>✦ ${escapeHTML(tr(e, 'name'))}</h3><p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Réserver')} →</span></button>`).join('');
-  const sel = $('#equipmentSelect'), cur = sel.value;
-  sel.innerHTML = state.equipment.map(e => `<option value="${escapeHTML(e.id)}">${escapeHTML(tr(e, 'name'))} — ${money(e.daily_price_htg)} ${t('/ jour')}</option>`).join(''); if (cur) sel.value = cur;
+  $('#equipmentGrid').innerHTML = state.equipment.map(e => `<button type="button" class="equipment-item ${e.photo ? 'has-photo' : ''}" data-eq="${escapeHTML(e.id)}">${e.photo ? `<img class="eq-img" src="/media/${escapeHTML(e.photo)}" alt="" loading="lazy">` : ''}<h3>${e.photo ? '' : '✦ '}${escapeHTML(tr(e, 'name'))}</h3><p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Ajouter')} →</span></button>`).join('');
+  state.rentalLines = state.rentalLines.filter(l => eqById(l.id));
+  if (!state.rentalLines.length && state.equipment.length) state.rentalLines.push({ id: state.equipment[0].id, qty: 1 });
+  renderRentalLines();
+}
+function renderRentalLines() {
+  const opts = cur => state.equipment.map(e => `<option value="${escapeHTML(e.id)}" ${e.id === cur ? 'selected' : ''}>${escapeHTML(tr(e, 'name'))} — ${money(e.daily_price_htg)} ${t('/ jour')}</option>`).join('');
+  $('#rentalLines').innerHTML = state.rentalLines.map((l, i) => `<div class="rental-line" data-i="${i}"><label>${t('Matériel')}<select class="rl-eq">${opts(l.id)}</select></label><label>${t('Quantité')}<input class="rl-qty" type="number" min="1" max="1000" value="${l.qty}"></label>${state.rentalLines.length > 1 ? `<button type="button" class="rl-del" aria-label="${t('Retirer ce matériel')}">×</button>` : ''}</div>`).join('');
   updateRentalTotal();
 }
+function rentalDays() { const f = $('#rentalForm'), s = Date.parse(f.elements.start_at.value), e = Date.parse(f.elements.end_at.value); return s && e && e > s ? Math.ceil((e - s) / 86400000) : 1; }
 function updateRentalTotal() {
-  const f = $('#rentalForm'), e = state.equipment.find(x => x.id === f.elements.equipment_id.value), qty = Number(f.elements.quantity.value) || 0;
-  const s = Date.parse(f.elements.start_at.value), en = Date.parse(f.elements.end_at.value), days = s && en && en > s ? Math.ceil((en - s) / 86400000) : 1;
-  $('#rentalTotal').textContent = e && qty > 0 ? `${money(e.daily_price_htg * qty * days)} (${days} ${t(days > 1 ? 'jours' : 'jour')})` : '—';
+  const days = rentalDays(), lines = state.rentalLines.map(l => ({ e: eqById(l.id), qty: l.qty })).filter(x => x.e && x.qty > 0);
+  const total = lines.reduce((a, x) => a + x.e.daily_price_htg * x.qty * days, 0);
+  $('#rentalBreakdown').innerHTML = lines.length ? `<ul class="sum-lines">${lines.map(x => `<li><span>${escapeHTML(tr(x.e, 'name'))} × ${x.qty}</span><b>${money(x.e.daily_price_htg * x.qty * days)}</b></li>`).join('')}</ul><p class="hint">${t('Durée : {d} jour(s)', { d: days })}</p>` : '';
+  $('#rentalTotal').textContent = lines.length ? money(total) : '—';
 }
-$('#rentalForm').addEventListener('input', updateRentalTotal);
+$('#rentalLines').addEventListener('input', e => {
+  const row = e.target.closest('.rental-line'); if (!row) return; const l = state.rentalLines[Number(row.dataset.i)];
+  if (e.target.matches('.rl-qty')) l.qty = Math.max(0, Math.min(1000, Number(e.target.value) || 0));
+  if (e.target.matches('.rl-eq')) { if (state.rentalLines.some((x, k) => x.id === e.target.value && k !== Number(row.dataset.i))) { toast('Ce matériel est déjà dans votre demande.'); e.target.value = l.id; return; } l.id = e.target.value; }
+  updateRentalTotal();
+});
+$('#rentalLines').addEventListener('click', e => { const b = e.target.closest('.rl-del'); if (!b) return; state.rentalLines.splice(Number(b.closest('.rental-line').dataset.i), 1); renderRentalLines(); });
+$('#addRentalLine').onclick = () => { const free = state.equipment.find(e => !state.rentalLines.some(l => l.id === e.id)); if (!free) { toast('Ce matériel est déjà dans votre demande.'); return; } state.rentalLines.push({ id: free.id, qty: 1 }); renderRentalLines(); };
+$('#rentalForm').addEventListener('input', e => { if (e.target.name === 'start_at' || e.target.name === 'end_at') updateRentalTotal(); });
 $('#rentalOpen').onclick = () => { $('#rentalForm').classList.remove('collapsed'); $('#rentalOpen').classList.add('hidden'); };
-$('#equipmentGrid').addEventListener('click', e => { const it = e.target.closest('[data-eq]'); if (!it) return; $('#equipmentSelect').value = it.dataset.eq; updateRentalTotal(); $('#rentalOpen').click(); $('#rentalForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+$('#equipmentGrid').addEventListener('click', e => {
+  const it = e.target.closest('[data-eq]'); if (!it) return; const id = it.dataset.eq, line = state.rentalLines.find(l => l.id === id);
+  // Le premier clic remplace la ligne par défaut encore vierge ; les suivants ajoutent un matériel ou augmentent sa quantité.
+  if (!state.rentalTouched && state.rentalLines.length <= 1) state.rentalLines = [{ id, qty: 1 }]; else if (line) line.qty += 1; else state.rentalLines.push({ id, qty: 1 });
+  state.rentalTouched = true; renderRentalLines(); $('#rentalOpen').click(); toast(`${tr(eqById(id), 'name')} — ${t('Ajouté ✓')}`);
+});
 $('#rentalForm').onsubmit = async e => {
-  e.preventDefault(); if (!needAuth()) return; const f = new FormData(e.target);
+  e.preventDefault(); if (!needAuth()) return; const form = e.target, f = new FormData(form);
+  const items = state.rentalLines.filter(l => l.qty > 0).map(l => ({ equipment_id: l.id, quantity: l.qty }));
+  if (!items.length) { toast('Ajoutez au moins un matériel.'); return; }
+  for (const el of [form.elements.start_at, form.elements.end_at, form.elements.city]) if (!el.checkValidity()) { el.reportValidity(); return; }
   try {
-    await post('/api/rentals', { equipment_id: f.get('equipment_id'), quantity: Number(f.get('quantity')), city: f.get('city'), start_at: new Date(f.get('start_at')).toISOString(), end_at: new Date(f.get('end_at')).toISOString() });
-    toast('Demande de location enregistrée, en attente de confirmation.'); location.hash = 'espace'; refreshOrders();
-  } catch (err) { toast(err.message); }
+    await post('/api/rentals', { items, city: f.get('city'), address: f.get('address'), note: f.get('note'), start_at: new Date(f.get('start_at')).toISOString(), end_at: new Date(f.get('end_at')).toISOString() });
+    toast('Demande de location enregistrée, en attente de confirmation.'); form.reset(); state.rentalLines = []; state.rentalTouched = false; renderEquipment(); goAccount(); refreshOrders();
+  } catch (err) { toast(err.message.startsWith('Stock insuffisant : ') ? t('Stock insuffisant : {n}', { n: err.message.slice(20) }) : err.message); }
 };
+
+/* ---------- Cookies et mesure d'audience (avec consentement) ---------- */
+const getCookie = n => (document.cookie.match(new RegExp('(?:^|; )' + n + '=([^;]*)')) || [])[1] || '';
+function setCookie(n, v, days) { document.cookie = `${n}=${v}; Max-Age=${days * 86400}; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`; }
+function recordVisit() {
+  if (getCookie('mm_consent') !== 'yes') return;
+  if (!/^[a-f0-9-]{36}$/.test(getCookie('mm_vid'))) setCookie('mm_vid', crypto.randomUUID ? crypto.randomUUID() : 'xxxxxxxx-xxxx-4xxx-8xxx-xxxxxxxxxxxx'.replace(/x/g, () => (Math.random() * 16 | 0).toString(16)), 365);
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch {}
+  fetch('/api/visit', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: location.pathname + location.hash, ref: document.referrer && !document.referrer.startsWith(location.origin) ? document.referrer : '', lang, tz, screen: `${screen.width}x${screen.height}` }) }).catch(() => {});
+}
+function showCookieBanner(show) { $('#cookieBanner').classList.toggle('hidden', !show); }
+$('#cookieAccept').onclick = () => { setCookie('mm_consent', 'yes', 365); showCookieBanner(false); recordVisit(); toast('Votre choix est enregistré.'); };
+$('#cookieRefuse').onclick = () => { setCookie('mm_consent', 'no', 365); setCookie('mm_vid', '', 0); showCookieBanner(false); toast('Votre choix est enregistré.'); };
+$('#cookieSettings').onclick = e => { e.preventDefault(); showCookieBanner(true); };
 
 /* ---------- Galerie et témoignages ---------- */
 async function loadGallery() { state.gallery = await api('/api/gallery'); renderGallery(); renderContact(); renderCatalog(); }
@@ -445,7 +484,7 @@ async function refreshOrders() {
       return `<article class="order"><div><strong>${escapeHTML(pkg)} · ${escapeHTML(o.recipient)}</strong><p>📍 ${escapeHTML(o.city)} · ${escapeHTML(dateTime(o.event_at))}</p>${o.message ? `<p>${t('Carte')} : « ${escapeHTML(o.message)} »</p>` : ''}<p><span class="status">${escapeHTML(label(o.status))}</span> · ${t('Paiement')} : ${escapeHTML(label(o.payment_status))}</p>${o.live_url ? `<p><a href="${escapeHTML(o.live_url)}" target="_blank" rel="noopener noreferrer">▶ ${t('Rejoindre Magic Live (lien externe)')}</a></p>` : ''}${waiting}${payBtn}${manual}${o.payment_status === 'paid' ? `<button class="receipt" data-id="${escapeHTML(o.id)}">${t('Reçu')}</button>` : ''}</div><strong>${money(amount)}</strong></article>`;
     }).join('') : `<div class="empty">${t('Aucune commande pour le moment.')}</div>`;
     const myRentals = state.user.role === 'admin' ? rentals.filter(r => r.user_id === state.user.id) : rentals;
-    $('#myRentals').innerHTML = myRentals.length ? myRentals.map(r => `<article class="order"><div><strong>${escapeHTML((lang === 'ht' && state.equipment.find(e => e.id === r.equipment_id)?.name_ht) || r.equipment_name)}</strong><p>${Number(r.quantity)} ${t('unité(s)')} · ${escapeHTML(r.city)}</p><p>${dateTime(r.start_at, true)} — ${dateTime(r.end_at, true)}</p></div><span class="status">${escapeHTML(label(r.status))}</span></article>`).join('') : `<div class="empty">${t('Aucune demande de location.')}</div>`;
+    $('#myRentals').innerHTML = myRentals.length ? myRentals.map(r => `<article class="order"><div><strong>${escapeHTML(r.items ? r.items.map(x => ((lang === 'ht' && x.name_ht) || x.name) + ' × ' + x.quantity).join(', ') : ((lang === 'ht' && state.equipment.find(e => e.id === r.equipment_id)?.name_ht) || r.equipment_name))}</strong><p>${r.items ? '' : Number(r.quantity) + ' ' + t('unité(s)') + ' · '}${escapeHTML(r.city)}${r.estimate ? ' · ' + money(r.estimate) : ''}</p><p>${dateTime(r.start_at, true)} — ${dateTime(r.end_at, true)}</p></div><span class="status">${escapeHTML(label(r.status))}</span></article>`).join('') : `<div class="empty">${t('Aucune demande de location.')}</div>`;
   } catch (err) { toast(err.message); }
 }
 async function showLive(list) {
@@ -559,6 +598,7 @@ async function init() {
     renderElements(); renderCategories(); renderCatalog(); setBuildMode('custom'); renderEquipment(); renderGallery(); renderContact(); cardDefaults(); setMode('login'); goStep(1);
     try { state.user = (await api('/api/me')).user; } catch {}
     renderAuth(); refreshOrders(); checkHashLinks();
+    if (!getCookie('mm_consent')) showCookieBanner(true); else recordVisit();
     if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token); } catch {} }
   } catch (err) { toast(t('Impossible de charger les données : ') + t(err.message)); }
 }

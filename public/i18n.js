@@ -148,6 +148,16 @@ export const HT = {
   'Aucun poste ouvert pour le moment. Revenez bientôt !': 'Pa gen pòs ki louvri kounye a. Tounen byento !',
   'Merci ! Votre candidature a bien été envoyée. Nous vous contacterons si votre profil est retenu.': 'Mèsi ! Nou resevwa aplikasyon ou. N ap kontakte w si pwofil ou koresponn.',
   'Faire une demande de location →': 'Fè yon demann lokasyon →', 'Réserver': 'Rezève',
+  'Ajoutez autant de matériels que nécessaire : l’estimation se met à jour automatiquement.': 'Ajoute tout materyèl ou bezwen : estimasyon an ap chanje otomatikman.',
+  '＋ Ajouter un autre matériel': '＋ Ajoute yon lòt materyèl', 'Adresse (facultatif)': 'Adrès (si w vle)', 'Précisions (facultatif)': 'Detay (si w vle)', 'Installation, horaire de livraison…': 'Enstalasyon, lè livrezon…',
+  'Retirer ce matériel': 'Retire materyèl sa a', 'Matériel': 'Materyèl', 'Durée : {d} jour(s)': 'Dire : {d} jou', 'Ajoutez au moins un matériel.': 'Ajoute omwen yon materyèl.', 'Ce matériel est déjà dans votre demande.': 'Materyèl sa a deja nan demann ou an.',
+  'Questions fréquentes (FAQ)': 'Kesyon moun poze souvan (FAQ)', 'FAQ': 'FAQ', 'Cookies': 'Bonbon (cookies)', 'Refuser': 'Refize', 'Accepter': 'Aksepte', 'En savoir plus': 'Plis enfòmasyon',
+  '🍪 Nous utilisons un cookie nécessaire au fonctionnement du site et, avec votre accord, un cookie de mesure d’audience (pays, ville approximative, heure et type d’appareil) pour améliorer nos services.': '🍪 Nou itilize yon bonbon (cookie) ki nesesè pou sit la mache epi, si w dakò, yon bonbon pou mezire odyans (peyi, vil apeprè, lè ak kalite aparèy) pou nou amelyore sèvis nou yo.',
+  'Votre choix est enregistré.': 'Nou anrejistre chwa ou.', 'Stock insuffisant : {n}': 'Pa gen ase nan stòk : {n}',
+  'Questions fréquentes': 'Kesyon moun poze souvan', 'Rechercher une question…': 'Chèche yon kesyon…', 'Toutes': 'Tout', 'Vous ne trouvez pas votre réponse ?': 'Ou pa jwenn repons ou ?',
+  'Écrivez-nous, nous répondons rapidement.': 'Ekri nou, n ap reponn ou rapid.', '← Retour au site': '← Retounen sou sit la', 'Aucune question ne correspond à votre recherche.': 'Pa gen kesyon ki koresponn ak rechèch ou a.',
+  'Modifier mes choix de cookies': 'Chanje chwa bonbon (cookies) mwen', 'Mesure d’audience acceptée': 'Mezi odyans aksepte', 'Mesure d’audience refusée': 'Mezi odyans refize',
+  'Commandes': 'Kòmand', 'Paiement': 'Peman', 'Diaspora': 'Dyaspora', 'Compte et confidentialité': 'Kont ak konfidansyalite',
   'Temps plein': 'Plen tan', 'Temps partiel': 'Mwatye tan', 'Contrat': 'Kontra', 'Stage': 'Estaj', 'Journalier': 'Pa jounen',
   'Fichier trop volumineux (6 Mo maximum)': 'Fichye a twò lou (6 Mo maksimòm)', 'Ce poste n’est plus ouvert': 'Pòs sa a pa louvri ankò', 'Type de fichier non accepté': 'Kalite fichye sa a pa aksepte',
   '{n} photos': '{n} foto', 'Photo {i} / {n}': 'Foto {i} / {n}', 'Photos': 'Foto', 'Précédente': 'Anvan', 'Suivante': 'Apre'
@@ -155,5 +165,5 @@ export const HT = {
 
 // Éléments dont le contenu contient du balisage (marqués data-i18n dans la page).
 export const HT_HTML = {
-  hero: 'Kreye moman <em>majik</em> ou p ap janm bliye.'
+  hero: 'Kreye moman <em>majik</em> ou p ap janm bliye pou moun ou renmen yo.'
 };

@@ -161,3 +161,7 @@ pre.log{white-space:pre-wrap;background:#fff;border:1px solid var(--line);border
 #sideNav .sub{display:flex;flex-direction:column;gap:2px;margin:2px 0 6px 22px;padding-left:10px;border-left:2px solid #ffffff26}
 #sideNav .sub button{padding:8px 10px;font-size:13px;font-weight:600;color:#d9c5e4}
 #sideNav .sub button.active{background:#fff;color:var(--p)}
+/* V15 : nouveau logo */
+.login-logo{display:block;width:100%;max-width:300px;margin:0 auto 6px}
+.side .brand .mark{width:42px;height:42px;border-radius:12px;background:#fff;display:grid;place-items:center;flex-shrink:0}
+.side .brand .mark img{width:34px;height:34px;object-fit:contain}
