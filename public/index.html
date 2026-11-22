@@ -19,6 +19,8 @@
     <a class="brand logo-link" href="#accueil"><img class="logo-img" src="/logo-header.png" alt="Magic Moments" width="346" height="150"></a>
     <nav class="main-nav">
       <a href="#accueil">Accueil</a>
+      <a href="#express" class="nav-express">⚡ Cadeau express</a>
+      <a href="#boutique">Boutique</a>
       <a href="#catalogue">Nos surprises</a>
       <a href="#commander">Créer une surprise</a>
       <a href="#location">Location</a>
@@ -43,6 +45,8 @@
     <p class="drawer-hello" id="drawerHello" data-dyn></p>
     <nav class="drawer-nav">
       <a href="#accueil"><i>🏠</i>Accueil</a>
+      <a href="#express"><i>⚡</i>Cadeau express (aujourd’hui)</a>
+      <a href="#boutique"><i>🛍️</i>Boutique de cadeaux</a>
       <a href="#catalogue"><i>🎁</i>Nos surprises</a>
       <a href="#commander"><i>✨</i>Créer une surprise</a>
       <a href="#location"><i>🪑</i>Location</a>
@@ -70,6 +74,7 @@
     <div class="actions">
       <a class="btn btn-gold" href="#catalogue">Voir nos surprises ↗</a>
       <a class="btn btn-ghost custom-start" href="#commander">Composer ma surprise</a>
+      <a class="btn btn-ghost express-cta" href="#express">⚡ Cadeau express aujourd’hui</a>
     </div>
   </div>
   <div class="hero-art"><div class="slideshow" id="slideshow" data-dyn><div class="slides" id="slides"><figure class="slide active"><img src="/logo.png" alt="Magic Moments" width="840" height="560"></figure></div><div class="slide-dots" id="slideDots"></div></div></div>
@@ -83,6 +88,17 @@
   </div>
 </section>
 
+<section id="express" class="section express-band hidden">
+  <div class="wrap">
+    <div class="section-top"><div><div class="eyebrow">⚡ CADEAU EXPRESS</div><h2>Un cadeau livré aujourd’hui</h2><p id="expressInfo" data-dyn></p></div></div>
+    <div id="expressGrid" class="express-grid" data-dyn></div>
+  </div>
+</section>
+<section id="boutique" class="section wrap hidden">
+  <div class="section-top"><div><div class="eyebrow dark">🛍️ BOUTIQUE DE CADEAUX</div><h2>Des cadeaux prêts à offrir</h2><p>Choisissez vos cadeaux, ajoutez-les au panier, puis faites-les livrer ou retirez-les sur place.</p></div><button type="button" class="btn btn-purple" id="cartOpen2">🛒 <span data-dyn class="cart-n">0</span> · Mon panier</button></div>
+  <div class="shop-tools"><input id="shopSearch" type="search" placeholder="Rechercher un cadeau" maxlength="80"><div id="shopCats" class="chips" data-dyn></div></div>
+  <div id="shopGrid" class="shop-grid" data-dyn></div>
+</section>
 <section id="catalogue" class="section wrap">
   <div class="section-top">
     <div>
@@ -131,6 +147,7 @@
           <div id="customOptions"></div>
           <label id="quantityLabel">Nombre de surprises identiques<input name="quantity" type="number" value="1" min="1" max="100" required></label>
         </div>
+        <div id="shopAddon" class="shop-addon hidden"><h3 class="form-h">🛍️ Ajoutez des cadeaux de la boutique</h3><p class="hint">Fleurs, peluches, chocolats… livrés avec votre surprise.</p><div id="addonList" class="addon-list" data-dyn></div></div>
       </fieldset>
 
       <fieldset class="step hidden" data-step="2">
@@ -265,6 +282,37 @@
 </div>
 <div id="toast" class="toast hidden" role="status"></div>
 <div id="lightbox" class="lightbox hidden" role="dialog" aria-label="Photos"><button type="button" class="close lb-close" aria-label="Fermer">×</button><button type="button" class="lb-nav lb-prev" aria-label="Précédente">‹</button><figure><img id="lbImg" alt=""><figcaption id="lbCaption" data-dyn></figcaption></figure><button type="button" class="lb-nav lb-next" aria-label="Suivante">›</button></div>
+<div id="expressModal" class="modal hidden"><div class="modal-content wide"><button type="button" id="closeExpress" class="close" aria-label="Fermer">×</button><h2>⚡ Cadeau express</h2><p>Livré aujourd’hui dans le créneau choisi. Paiement de la totalité à la commande.</p>
+  <form id="expressForm" novalidate><div id="xSummary" class="summary" data-dyn></div>
+    <h3 class="form-h">🎁 Pour qui ?</h3>
+    <div class="form-grid"><label>Nom du destinataire<input name="recipient" required minlength="2" maxlength="120"></label><label>Téléphone du destinataire<input name="recipient_phone" type="tel" required maxlength="25" placeholder="+509 …"></label></div>
+    <label>Occasion<select name="occasion" required><option>Anniversaire</option><option>Amour</option><option>Félicitations</option><option>Merci</option><option>Fête des mères</option><option>Prompt rétablissement</option><option>Juste pour faire plaisir</option></select></label>
+    <h3 class="form-h">📍 Où et quand ?</h3>
+    <div class="form-grid"><label>Ville<select name="city" required id="xCity" data-dyn></select></label><label>Créneau de livraison (aujourd’hui)<select name="express_slot" required id="xSlot" data-dyn></select></label></div>
+    <label>Adresse de livraison<input name="address" required minlength="5" maxlength="500" placeholder="Rue, numéro, quartier"></label>
+    <label>Point de repère (facultatif)<input name="landmark" maxlength="200" placeholder="Ex. en face de l’église"></label>
+    <label>Mot sur la carte (facultatif)<textarea name="message" rows="2" maxlength="1000" placeholder="Joyeux anniversaire ! Je pense fort à toi…"></textarea></label>
+    <h3 class="form-h">💌 De la part de</h3>
+    <div class="form-grid"><label>Votre nom<input name="sender_name" required minlength="2" maxlength="120" autocomplete="name"></label><label>Votre téléphone / WhatsApp<input name="sender_phone" type="tel" required maxlength="25" autocomplete="tel"></label></div>
+    <label>Votre courriel (reçu et suivi)<input name="sender_email" type="email" required maxlength="200" autocomplete="email"></label>
+    <button class="btn btn-gold full" id="xSubmit">Commander et payer</button><p class="hint">Aucun compte nécessaire. Vous recevez la référence, le reçu et le suivi par courriel.</p></form></div></div>
+<button type="button" id="cartFab" class="cart-fab hidden" aria-label="Mon panier">🛒<span class="cart-n" data-dyn>0</span></button>
+<div id="cartModal" class="modal hidden"><div class="modal-content wide"><button type="button" id="closeCart" class="close" aria-label="Fermer">×</button><h2>🛒 Mon panier</h2>
+  <div id="cartLines" class="cart-lines" data-dyn></div>
+  <form id="cartForm" novalidate>
+    <h3 class="form-h">🚚 Livraison ou retrait</h3><div id="cartModes" class="pay-parts" data-dyn></div>
+    <label><span id="cartDateL">Date de livraison</span><input type="date" name="date" required id="cartDate"></label>
+    <label class="check"><input type="checkbox" name="for_other" id="cartForOther" checked> C’est un cadeau pour quelqu’un d’autre</label>
+    <div id="cartRecipient"><div class="form-grid"><label>Nom du destinataire<input name="recipient" maxlength="120"></label><label>Téléphone du destinataire<input name="recipient_phone" type="tel" maxlength="25" placeholder="+509 …"></label></div></div>
+    <div id="cartAddress"><div class="form-grid"><label>Ville<input name="city" maxlength="120"></label><label>Point de repère (facultatif)<input name="landmark" maxlength="200"></label></div><label>Adresse de livraison<input name="address" maxlength="500" placeholder="Rue, numéro, quartier"></label></div>
+    <label>Mot sur la carte (facultatif)<textarea name="message" rows="2" maxlength="1000"></textarea></label>
+    <label class="check" id="cartWrapL"><input type="checkbox" name="gift_wrap"> <span id="cartWrapText" data-dyn></span></label>
+    <h3 class="form-h">💌 Vos coordonnées</h3>
+    <div class="form-grid"><label>Votre nom<input name="sender_name" required maxlength="120" autocomplete="name"></label><label>Votre téléphone / WhatsApp<input name="sender_phone" type="tel" required maxlength="25" autocomplete="tel"></label></div>
+    <label>Votre courriel (reçu et suivi)<input name="sender_email" type="email" required maxlength="200" autocomplete="email"></label>
+    <div id="cartTotals" class="summary" data-dyn></div>
+    <button class="btn btn-gold full" id="cartSubmit">Commander et payer</button><p class="hint">Aucun compte nécessaire. Paiement de la totalité à la commande ; référence, reçu et suivi par courriel.</p>
+  </form></div></div>
 <div id="payModal" class="modal hidden"><div class="modal-content"><button type="button" id="closePay" class="close" aria-label="Fermer">×</button><h2 id="payTitle">Paiement de votre commande</h2><div id="payInfo"></div><div id="payActions" class="pay-actions"></div></div></div>
 <div id="musicModal" class="modal hidden"><div class="modal-content music-modal"><button type="button" id="closeMusic" class="close" aria-label="Fermer">×</button><h2>Notre playlist</h2><p>Écoutez un extrait puis choisissez la musique de votre surprise.</p><input id="musicSearch" type="search" placeholder="Rechercher un titre ou un artiste"><div id="musicCats" class="chips"></div><div id="musicList" class="music-list"></div></div></div>
 <div id="authModal" class="modal hidden"><div class="modal-content"><button id="closeModal" class="close" aria-label="Fermer">×</button><h2 id="modalTitle">Connexion</h2><p id="modalIntro">Accédez à votre espace Magic Moments.</p><form id="authForm"><label id="nameLabel" class="hidden">Nom complet<input name="name" placeholder="Votre nom" autocomplete="name"></label><label id="emailLabel">Courriel<input name="email" type="email" required autocomplete="email"></label><label id="passwordLabel">Mot de passe<input name="password" type="password" minlength="8" maxlength="128" required autocomplete="current-password"></label><label id="confirmLabel" class="hidden">Confirmer le mot de passe<input name="confirm" type="password" minlength="8" maxlength="128" autocomplete="new-password"></label><button class="btn btn-purple full" id="authSubmit">Se connecter</button></form><button type="button" class="linkbtn" id="forgotAuth">Mot de passe oublié ?</button><br><button type="button" class="linkbtn" id="switchAuth">Créer un compte</button></div></div>

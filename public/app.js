@@ -59,7 +59,7 @@ function setLang(l) {
   const keep = customLines();
   lang = l; try { localStorage.setItem('mm_lang', l); } catch {}
   translateStatic();
-  renderCategories(); renderCatalog(); renderElements(keep); setBuildMode(state.buildMode); renderEquipment(); renderGallery(); renderContact(); renderTestimonials();
+  renderCategories(); renderCatalog(); renderElements(keep); setBuildMode(state.buildMode); renderEquipment(); renderGallery(); renderContact(); renderTestimonials(); renderExpress(); renderShop(); renderCart(); renderAddons();
   setMode(state.mode); goStep(state.step); renderAuth(); refreshOrders(); renderTicker(); if (state.jobs && !$('#careersModal').classList.contains('hidden')) renderJobs(); if (state.pay) renderPay();
 }
 $('#langToggle').onclick = () => setLang(lang === 'ht' ? 'fr' : 'ht');
@@ -104,6 +104,7 @@ $('#authForm').onsubmit = async e => {
       r = await post(mode === 'register' ? '/api/auth/register' : '/api/auth/login', body);
     }
     if (r.user.role === 'admin') { location.href = '/admin'; return; }
+    if (r.user.role === 'staff') { location.href = '/equipe'; return; }
     state.user = r.user; form.reset(); closeModal(); renderAuth();
     toast(mode === 'reset' ? 'Mot de passe modifié. Vous êtes connecté.' : 'Bienvenue sur Magic Moments !'); refreshOrders();
   } catch (err) { toast(err.message); }
@@ -274,10 +275,27 @@ function renderOptions() {
   updateTotal();
 }
 function orderTotal() {
-  if (isCustom()) return customLines().reduce((a, l) => a + l.quantity * lineUnit(elById(l.id), l.choices), 0);
+  if (isCustom()) return customLines().reduce((a, l) => a + l.quantity * lineUnit(elById(l.id), l.choices), 0) + addonTotal();
   const p = currentPackage(); if (!p) return null;
-  return (p.price_htg + selectedOptions().reduce((a, x) => a + x.price, 0)) * Math.max(1, Number($('#orderForm [name=quantity]').value) || 1);
+  return (p.price_htg + selectedOptions().reduce((a, x) => a + x.price, 0)) * Math.max(1, Number($('#orderForm [name=quantity]').value) || 1) + addonTotal();
 }
+/* Articles de la boutique ajoutés à la surprise */
+state.addons = {};
+const addonLines = () => Object.entries(state.addons).map(([id, q]) => ({ x: (state.shop?.products || []).find(p => p.id === id), q })).filter(l => l.x && l.q > 0);
+const addonTotal = () => addonLines().reduce((a, l) => a + l.x.price_htg * l.q, 0);
+function renderAddons() {
+  const S = state.shop, on = !!S?.settings.enabled && S.products.some(x => x.stock > 0);
+  $('#shopAddon').classList.toggle('hidden', !on); if (!on) return;
+  $('#addonList').innerHTML = S.products.filter(x => x.stock > 0 || state.addons[x.id]).map(x => { const q = state.addons[x.id] || 0;
+    return `<div class="addon ${q ? 'on' : ''}"><span class="cart-ico">${x.photo ? `<img src="/media/${escapeHTML(x.photo)}" alt="" loading="lazy">` : SHOP_ICON[x.category] || '🎁'}</span><span class="grow"><b>${escapeHTML(prodName(x))}</b><small>${money(x.price_htg)}</small></span>
+      ${q ? `<span class="qty" data-id="${x.id}"><button type="button" data-d="-1">−</button><em>${q}</em><button type="button" data-d="1" ${q >= x.stock ? 'disabled' : ''}>+</button></span>` : `<button type="button" class="btn btn-outline-dark addon-add" data-id="${x.id}">＋ ${t('Ajouter')}</button>`}</div>`; }).join('');
+}
+$('#addonList').addEventListener('click', e => {
+  const a = e.target.closest('.addon-add'), q = e.target.closest('.qty [data-d]'), id = a?.dataset.id || q?.closest('.qty').dataset.id; if (!id) return;
+  const x = state.shop.products.find(p => p.id === id), n = Math.max(0, Math.min(x.stock, (state.addons[id] || 0) + (a ? 1 : Number(q.dataset.d))));
+  if (n) state.addons[id] = n; else delete state.addons[id];
+  renderAddons(); updateTotal(); if (a) toast(`🛍️ ${prodName(x)} — ${t('Ajouté ✓')}`);
+});
 const choicesText = (el, choices) => (el.groups || []).flatMap(g => [].concat(choices[g.id] || []).map(oid => optName(g.options.find(o => o.id === oid) || {}))).filter(Boolean).join(', ');
 function updateTotal() {
   const v = orderTotal(); $('#orderTotal').textContent = v === null ? '—' : money(v); depositText('#orderDeposit', v);
@@ -295,7 +313,7 @@ $$('.custom-start, nav a[href="#commander"]').forEach(a => a.addEventListener('c
 
 function validateStep(n) {
   if (n === 1 && isCustom()) {
-    const lines = customLines(); if (!lines.length) { goStep(1); toast('Ajoutez au moins un élément pour composer votre surprise.'); return false; }
+    const lines = customLines(); if (!lines.length && !addonLines().length) { goStep(1); toast('Ajoutez au moins un élément pour composer votre surprise.'); return false; }
     for (const l of lines) { const el = elById(l.id); for (const g of el.groups || []) if (g.required && ![].concat(l.choices[g.id] || []).length) { goStep(1); toast(t('Faites un choix pour « {g} »', { g: `${tr(g, 'name')} — ${tr(el, 'name')}` })); return false; } }
   }
   if (n === 1 && !isCustom() && !currentPackage()) { goStep(1); toast('Choisissez une surprise.'); return false; }
@@ -321,6 +339,7 @@ function goStep(n) {
 function renderSummary() {
   const f = new FormData($('#orderForm')), p = currentPackage();
   const items = p ? [tr(p, 'name'), ...selectedOptions().map(x => '+ ' + x.name)] : customLines().map(l => { const el = elById(l.id), c = choicesText(el, l.choices); return `${tr(el, 'name')}${c ? ' (' + c + ')' : ''} × ${l.quantity}`; });
+  items.push(...addonLines().map(l => `🛍️ ${prodName(l.x)} × ${l.q}`));
   $('#orderSummary').innerHTML = `<strong>${t('Récapitulatif')}</strong><p>${items.map(escapeHTML).join('<br>')}</p><p>${t('Pour')} <b>${escapeHTML(f.get('recipient'))}</b> · ${escapeHTML(f.get('city'))} (${escapeHTML(f.get('department'))})<br>${f.get('event_at') ? escapeHTML(dateTime(f.get('event_at'))) : ''}</p>`;
 }
 $('#stepNext').onclick = () => { if (validateStep(state.step)) { goStep(state.step + 1); $('#orderForm').scrollIntoView({ behavior: 'smooth', block: 'start' }); } };
@@ -337,9 +356,10 @@ $('#orderForm').onsubmit = async e => {
       ...Object.fromEntries(['sender_name', 'sender_phone', 'sender_email', 'recipient_phone', 'alternate_phone', 'department', 'landmark', 'colors', 'theme', 'cake', 'music', 'notes', 'sender'].map(k => [k, f.get(k) || '']))
     };
     body.music_id = f.get('music_id') || '';
+    body.shop_items = addonLines().map(l => ({ id: l.x.id, quantity: l.q }));
     const o = await post('/api/orders', body), wantDeposit = f.has('pay_deposit') && !$('#orderDeposit').classList.contains('hidden');
     for (const k of ['recipient', 'recipient_phone', 'alternate_phone', 'message', 'sender', 'landmark', 'address', 'event_at', 'colors', 'theme', 'cake', 'music', 'music_id', 'notes']) e.target.elements[k].value = '';
-    $('#musicChosen').innerHTML = '';
+    $('#musicChosen').innerHTML = ''; state.addons = {}; renderAddons(); loadShop();
     remember('order', o.id, o.pay_token); refreshOrders();
     if (wantDeposit && o.pay_token) openPay(o.id, o.pay_token, 'order', 'deposit');
     e.target.elements.live_requested.checked = false; cardDefaults();
@@ -551,8 +571,8 @@ const refOf = (kind, x) => (kind === 'order' ? 'MM-' : 'LOC-') + x.id.slice(0, 8
 function itemCard(v) {
   const title = (lang === 'ht' && v.title_ht) || v.title, rest = v.remaining;
   const head = v.kind === 'order' ? `🎁 ${escapeHTML(title)} · ${escapeHTML(v.recipient)}` : `🪑 ${escapeHTML(title)}`;
-  const when = v.kind === 'order' ? `<p>📍 ${escapeHTML(v.city)} · ${escapeHTML(dateTime(v.date))}</p>` : `<p>📍 ${escapeHTML(v.city)}${v.days ? ' · ' + v.days + ' ' + t('jour(s)') : ''}</p><p>${dateTime(v.date, true)} — ${dateTime(v.end, true)}</p>`;
-  const payBtn = v.can_pay ? `<button class="btn btn-gold pay-now" data-kind="${v.kind}" data-id="${escapeHTML(v.id)}" data-token="${escapeHTML(v.token)}">💳 ${t(v.paid > 0 ? 'Payer le solde ({m})' : PAY().deposit_enabled ? 'Payer l’acompte ou la totalité' : 'Payer {m} maintenant', { m: money(v.paid > 0 ? rest : v.total) })}</button>` : '';
+  const when = v.kind === 'order' ? `${v.express ? `<p class="x-badge">⚡ ${t('Cadeau express')} · ${escapeHTML(v.express_slot)}</p>` : ''}<p>📍 ${escapeHTML(v.city)} · ${escapeHTML(dateTime(v.date))}</p>` : `<p>📍 ${escapeHTML(v.city)}${v.days ? ' · ' + v.days + ' ' + t('jour(s)') : ''}</p><p>${dateTime(v.date, true)} — ${dateTime(v.end, true)}</p>`;
+  const payBtn = v.can_pay ? `<button class="btn btn-gold pay-now" data-kind="${v.kind}" data-id="${escapeHTML(v.id)}" data-token="${escapeHTML(v.token)}">💳 ${t(v.paid > 0 ? 'Payer le solde ({m})' : PAY().deposit_enabled && !v.express && !v.shop ? 'Payer l’acompte ou la totalité' : 'Payer {m} maintenant', { m: money(v.paid > 0 ? rest : v.total) })}</button>` : '';
   const hint = v.declared ? `<p class="hint">⏳ ${t('Paiement déclaré, en cours de vérification.')}</p>` : v.status === 'pending' && !v.can_pay && v.payment_status !== 'paid' && payMethodsReady() ? `<p class="hint">${t(v.paid > 0 ? (v.kind === 'order' ? 'Acompte reçu : votre date est réservée. Le solde sera payable après confirmation par notre équipe.' : 'Acompte reçu : le matériel est bloqué pour vous. Le solde sera payable après confirmation.') : (v.kind === 'order' ? 'Paiement possible après confirmation de la commande par notre équipe.' : 'Paiement possible après confirmation de la location par notre équipe.'))}</p>` : '';
   return `<article class="order" id="it-${escapeHTML(v.id)}"><div><p class="ref">${t('Référence')} : <b>${escapeHTML(v.ref)}</b></p><strong>${head}</strong>${when}${v.message ? `<p>${t('Carte')} : « ${escapeHTML(v.message)} »</p>` : ''}${v.music ? `<p>🎵 ${escapeHTML(v.music)}</p>` : ''}
     ${stepper(v.kind, v)}<p>${t('Paiement')} : ${escapeHTML(label(v.payment_status))}${v.paid > 0 && rest > 0 ? ` · ${t('Déjà payé')} : <b>${money(v.paid)}</b> · ${t('Reste à payer')} : <b>${money(rest)}</b>` : ''}</p>
@@ -704,6 +724,111 @@ document.addEventListener('click', async e => {
   } catch (err) { toast(err.message); }
 });
 
+/* ---------- Cadeau express : livré le jour même ---------- */
+async function loadExpress() { try { state.express = await api('/api/express'); } catch { state.express = null; } renderExpress(); }
+const EXPRESS_CLOSED = { late: 'Les cadeaux express du jour sont fermés (commande avant {c}). Revenez demain dès {s}, ou planifiez une surprise pour une autre date.', full: 'Toutes les livraisons express du jour sont réservées. Revenez demain, ou planifiez une surprise pour une autre date.' };
+function renderExpress() {
+  const X = state.express, gifts = (state.packages || []).filter(p => p.express);
+  const show = !!X && X.enabled && gifts.length > 0;
+  $('#express').classList.toggle('hidden', !show); $$('a[href="#express"]').forEach(a => a.classList.toggle('hidden', !show));
+  if (!show) return;
+  $('#expressInfo').innerHTML = X.open ? t('Commandez avant {c} : livraison aujourd’hui à {v}. Frais express : {f}.', { c: X.cutoff, v: X.cities.slice(0, 5).join(', ') + (X.cities.length > 5 ? '…' : ''), f: money(X.fee) })
+    : `<span class="closed">⏰ ${t(EXPRESS_CLOSED[X.reason] || 'Le cadeau express n’est pas disponible pour le moment.', { c: X.cutoff, s: X.start })}</span> <a href="#commander">${t('Planifier une surprise')} →</a>`;
+  $('#expressGrid').innerHTML = gifts.map(p => `<article class="express-card" data-pkg="${escapeHTML(p.id)}"><div class="card-image">${packageVisual(p)}</div><div class="express-body"><strong>${escapeHTML(tr(p, 'name'))}</strong><p>${escapeHTML((tr(p, 'description') || '').slice(0, 110))}</p>
+    <div class="express-foot"><span><b>${money(p.price_htg + X.fee)}</b><small>${t('frais express inclus')}</small></span><button type="button" class="btn btn-gold express-go" data-id="${escapeHTML(p.id)}" ${X.open ? '' : 'disabled'}>⚡ ${t('Offrir aujourd’hui')}</button></div></div></article>`).join('');
+}
+$('#expressGrid').addEventListener('click', async e => {
+  const b = e.target.closest('.express-go'); if (!b) return;
+  await loadExpress(); if (!state.express?.open) { toast(t(EXPRESS_CLOSED[state.express?.reason] || 'Le cadeau express n’est pas disponible pour le moment.', { c: state.express?.cutoff, s: state.express?.start })); return; }
+  const p = state.packages.find(x => x.id === b.dataset.id), X = state.express, f = $('#expressForm'); state.expressPkg = p;
+  $('#xSummary').innerHTML = `<strong>${escapeHTML(tr(p, 'name'))}</strong><p>${t('Cadeau')} : ${money(p.price_htg)} · ${t('Frais express')} : ${money(X.fee)}</p><p class="total">${t('Total')} : <b>${money(p.price_htg + X.fee)}</b></p>`;
+  const city = f.elements.city.value; $('#xCity').innerHTML = X.cities.map(c => `<option ${c === city ? 'selected' : ''}>${escapeHTML(c)}</option>`).join('');
+  $('#xSlot').innerHTML = X.slots.map(sl => `<option value="${sl.id}">${t('Aujourd’hui')} · ${sl.label}</option>`).join('');
+  $('#xSubmit').textContent = t('Commander et payer {m}', { m: money(p.price_htg + X.fee) });
+  for (const [k, v] of Object.entries({ sender_name: state.user?.name, sender_email: state.user?.email, sender_phone: state.user?.phone })) if (v && !f.elements[k].value) f.elements[k].value = v;
+  $('#expressModal').classList.remove('hidden'); f.elements.recipient.focus();
+});
+const closeExpress = () => $('#expressModal').classList.add('hidden');
+$('#closeExpress').onclick = closeExpress;
+$('#expressModal').onclick = e => { if (e.target.id === 'expressModal') closeExpress(); };
+$('#expressForm').onsubmit = async e => {
+  e.preventDefault(); const form = e.target, btn = $('#xSubmit');
+  for (const el of form.querySelectorAll('input,select,textarea')) if (!el.checkValidity()) { el.reportValidity(); return; }
+  const f = Object.fromEntries(new FormData(form)), p = state.expressPkg; btn.disabled = true;
+  try {
+    const o = await post('/api/orders', { ...f, express: true, package_id: p.id, options: [], quantity: 1, lang, department: f.city, event_at: new Date(Date.now() + 36e5).toISOString() });
+    remember('order', o.id, o.pay_token); closeExpress(); for (const k of ['recipient', 'recipient_phone', 'address', 'landmark', 'message']) form.elements[k].value = '';
+    toast(t('Cadeau express enregistré — référence {r}. Réglez-le maintenant pour lancer la livraison.', { r: refOf('order', o) })); refreshOrders(); loadExpress();
+    if (o.pay_token) openPay(o.id, o.pay_token, 'order', 'full');
+  } catch (err) { toast(err.message); loadExpress(); } finally { btn.disabled = false; }
+};
+
+/* ---------- Boutique de cadeaux : panier, livraison ou retrait, paiement ---------- */
+const SHOP_ICON = { 'Fleurs': '💐', 'Peluches': '🧸', 'Chocolats et douceurs': '🍫', 'Paniers gourmands': '🧺', 'Bijoux et accessoires': '💍', 'Parfums et beauté': '🌸', 'Décoration': '🕯️', 'Cartes et ballons': '🎈', 'Personnalisés': '🎨' };
+state.shopCat = ''; state.cartMode = 'delivery';
+try { state.cart = JSON.parse(localStorage.getItem('mm_cart') || '[]').filter(x => x && x.id && x.q > 0); } catch { state.cart = []; }
+const saveCart = () => { try { localStorage.setItem('mm_cart', JSON.stringify(state.cart)); } catch {} };
+const prodName = x => (lang === 'ht' && x.name_ht) || x.name;
+async function loadShop() { try { state.shop = await api('/api/shop'); } catch { state.shop = null; } const ids = new Set((state.shop?.products || []).map(x => x.id)); state.cart = state.cart.filter(c => ids.has(c.id)); saveCart(); renderShop(); renderCart(); renderAddons(); updateTotal(); }
+function renderShop() {
+  const S = state.shop, on = !!S?.settings.enabled && S.products.length > 0;
+  $('#boutique').classList.toggle('hidden', !on); $$('a[href="#boutique"]').forEach(a => a.classList.toggle('hidden', !on)); if (!on) return;
+  const used = new Set(S.products.map(x => x.category)), q = $('#shopSearch').value.trim().toLowerCase();
+  $('#shopCats').innerHTML = [{ name: '' }, ...S.categories.filter(c => used.has(c.name))].map(c => `<button type="button" class="chip ${c.name === state.shopCat ? 'on' : ''}" data-cat="${escapeHTML(c.name)}">${c.name ? (SHOP_ICON[c.name] || '🎁') + ' ' + escapeHTML((lang === 'ht' && c.name_ht) || c.name) : t('Toutes')}</button>`).join('');
+  const list = S.products.filter(x => (!state.shopCat || x.category === state.shopCat) && (!q || (x.name + ' ' + x.name_ht + ' ' + x.description).toLowerCase().includes(q)));
+  $('#shopGrid').innerHTML = list.map(x => { const inCart = state.cart.find(c => c.id === x.id)?.q || 0;
+    return `<article class="shop-card"><div class="shop-img">${x.photo ? `<img src="/media/${escapeHTML(x.photo)}" alt="${escapeHTML(prodName(x))}" loading="lazy">` : `<span>${SHOP_ICON[x.category] || '🎁'}</span>`}${x.featured ? `<b class="shop-star">⭐ ${t('Coup de cœur')}</b>` : ''}${x.stock > 0 && x.stock <= 3 ? `<b class="shop-low">${t('Plus que {n}', { n: x.stock })}</b>` : ''}</div>
+      <div class="shop-body"><strong>${escapeHTML(prodName(x))}</strong><p>${escapeHTML((lang === 'ht' && x.description_ht) || x.description || '')}</p>
+      <div class="shop-foot"><b>${money(x.price_htg)}</b>${!x.stock ? `<span class="pill-out">${t('Épuisé')}</span>` : inCart ? `<span class="qty" data-id="${x.id}"><button type="button" data-d="-1">−</button><em>${inCart}</em><button type="button" data-d="1" ${inCart >= x.stock ? 'disabled' : ''}>+</button></span>` : `<button type="button" class="btn btn-gold add-cart" data-id="${x.id}">＋ ${t('Ajouter')}</button>`}</div></div></article>`; }).join('') || `<p class="empty">${t('Aucun cadeau ne correspond à votre recherche.')}</p>`;
+}
+function cartAdd(id, d) {
+  const x = state.shop.products.find(p => p.id === id); if (!x) return; let c = state.cart.find(c => c.id === id);
+  if (!c) { c = { id, q: 0 }; state.cart.push(c); } c.q = Math.max(0, Math.min(x.stock, c.q + d)); if (c.q === 0) state.cart = state.cart.filter(z => z !== c);
+  saveCart(); renderShop(); renderCart(); if (d > 0) toast(`🛒 ${prodName(x)} — ${t('Ajouté ✓')}`);
+}
+$('#shopGrid').addEventListener('click', e => { const a = e.target.closest('.add-cart'); if (a) return cartAdd(a.dataset.id, 1); const q = e.target.closest('.qty [data-d]'); if (q) cartAdd(q.closest('.qty').dataset.id, Number(q.dataset.d)); });
+$('#shopCats').addEventListener('click', e => { const c = e.target.closest('[data-cat]'); if (c) { state.shopCat = c.dataset.cat; renderShop(); } });
+$('#shopSearch').addEventListener('input', renderShop);
+function cartTotals() {
+  const S = state.shop.settings, lines = state.cart.map(c => ({ c, x: state.shop.products.find(p => p.id === c.id) })).filter(l => l.x), sub = lines.reduce((a, l) => a + l.x.price_htg * l.c.q, 0);
+  const fee = state.cartMode === 'pickup' ? 0 : (S.free_from && sub >= S.free_from ? 0 : S.delivery_fee), wrap = $('#cartForm').elements.gift_wrap.checked && S.gift_wrap > 0 ? S.gift_wrap : 0;
+  return { lines, sub, fee, wrap, total: sub + fee + wrap };
+}
+function renderCart() {
+  const S = state.shop?.settings, n = state.cart.reduce((a, c) => a + c.q, 0);
+  $$('.cart-n').forEach(e => e.textContent = n); $('#cartFab').classList.toggle('hidden', !n || !S?.enabled);
+  if (!S || $('#cartModal').classList.contains('hidden')) return;
+  if (!S.delivery) state.cartMode = 'pickup'; if (!S.pickup) state.cartMode = 'delivery';
+  const T = cartTotals(), f = $('#cartForm');
+  $('#cartLines').innerHTML = T.lines.map(({ c, x }) => `<div class="cart-line"><span class="cart-ico">${x.photo ? `<img src="/media/${escapeHTML(x.photo)}" alt="">` : SHOP_ICON[x.category] || '🎁'}</span><span class="grow"><b>${escapeHTML(prodName(x))}</b><small>${money(x.price_htg)}</small></span><span class="qty" data-id="${x.id}"><button type="button" data-d="-1">−</button><em>${c.q}</em><button type="button" data-d="1" ${c.q >= x.stock ? 'disabled' : ''}>+</button></span><b class="cart-sum">${money(x.price_htg * c.q)}</b></div>`).join('') || `<p class="empty">${t('Votre panier est vide.')}</p>`;
+  f.classList.toggle('hidden', !T.lines.length);
+  $('#cartModes').innerHTML = [S.delivery && ['delivery', '🚚 ' + t('Livraison'), S.free_from && T.sub >= S.free_from ? t('offerte') : money(S.delivery_fee)], S.pickup && ['pickup', '🏬 ' + t('Retrait sur place'), t('gratuit')]].filter(Boolean).map(([k, l, pr]) => `<label class="pay-part ${k === state.cartMode ? 'on' : ''}"><input type="radio" name="cartMode" value="${k}" ${k === state.cartMode ? 'checked' : ''}><span>${l}${k === 'pickup' && S.pickup_address ? `<br><small>${escapeHTML(S.pickup_address)}</small>` : ''}</span><b>${pr}</b></label>`).join('');
+  $('#cartAddress').classList.toggle('hidden', state.cartMode === 'pickup'); $('#cartDateL').textContent = t(state.cartMode === 'pickup' ? 'Date de retrait' : 'Date de livraison');
+  $('#cartRecipient').classList.toggle('hidden', !f.elements.for_other.checked);
+  $('#cartDate').min = S.first_date; if (!f.elements.date.value || f.elements.date.value < S.first_date) f.elements.date.value = S.first_date;
+  $('#cartWrapL').classList.toggle('hidden', !(S.gift_wrap > 0)); $('#cartWrapText').textContent = t('Emballage cadeau (+{m})', { m: money(S.gift_wrap) });
+  $('#cartTotals').innerHTML = `<p>${t('Articles')} : <b>${money(T.sub)}</b></p>${state.cartMode === 'delivery' ? `<p>${t('Livraison')} : <b>${T.fee ? money(T.fee) : t('offerte')}</b>${S.free_from && T.fee ? ` <small>(${t('offerte dès {m}', { m: money(S.free_from) })})</small>` : ''}</p>` : ''}${T.wrap ? `<p>${t('Emballage cadeau')} : <b>${money(T.wrap)}</b></p>` : ''}<p class="total">${t('Total')} : <b>${money(T.total)}</b></p>`;
+  $('#cartSubmit').textContent = t('Commander et payer {m}', { m: money(T.total) });
+}
+const openCart = () => { $('#cartModal').classList.remove('hidden'); const f = $('#cartForm'); for (const [k, v] of Object.entries({ sender_name: state.user?.name, sender_email: state.user?.email, sender_phone: state.user?.phone })) if (v && !f.elements[k].value) f.elements[k].value = v; renderCart(); };
+$('#cartFab').onclick = openCart; $('#cartOpen2').onclick = openCart;
+$('#closeCart').onclick = () => $('#cartModal').classList.add('hidden');
+$('#cartModal').addEventListener('click', e => { if (e.target.id === 'cartModal') $('#cartModal').classList.add('hidden'); const q = e.target.closest('.qty [data-d]'); if (q) cartAdd(q.closest('.qty').dataset.id, Number(q.dataset.d)); });
+$('#cartForm').addEventListener('change', e => { if (e.target.name === 'cartMode') state.cartMode = e.target.value; if (['cartMode', 'for_other', 'gift_wrap'].includes(e.target.name)) renderCart(); });
+$('#cartForm').onsubmit = async e => {
+  e.preventDefault(); const f = e.target, other = f.elements.for_other.checked, pickup = state.cartMode === 'pickup', btn = $('#cartSubmit');
+  const need = [f.elements.date, f.elements.sender_name, f.elements.sender_phone, f.elements.sender_email, ...(other ? [f.elements.recipient, f.elements.recipient_phone] : []), ...(pickup ? [] : [f.elements.city, f.elements.address])];
+  for (const el of need) if (!el.value.trim() || !el.checkValidity()) { el.reportValidity(); if (!el.value.trim()) toast(t('Complétez les champs obligatoires.')); el.focus(); return; }
+  const v = Object.fromEntries(new FormData(f)); btn.disabled = true;
+  try {
+    const o = await post('/api/shop/order', { ...v, items: state.cart.map(c => ({ id: c.id, quantity: c.q })), delivery: state.cartMode, for_other: other, gift_wrap: f.elements.gift_wrap.checked, lang });
+    state.cart = []; saveCart(); remember('order', o.id, o.pay_token); $('#cartModal').classList.add('hidden');
+    for (const k of ['recipient', 'recipient_phone', 'address', 'landmark', 'message']) f.elements[k].value = '';
+    toast(t('Commande enregistrée — référence {r}. Réglez-la maintenant pour que nous la préparions.', { r: refOf('order', o) })); loadShop(); refreshOrders();
+    if (o.pay_token) openPay(o.id, o.pay_token, 'order', 'full');
+  } catch (err) { toast(err.message); loadShop(); } finally { btn.disabled = false; }
+};
+
 /* ---------- Playlist : musiques importées de YouTube par l'équipe ---------- */
 state.musicCat = '';
 function renderMusic() {
@@ -737,7 +862,7 @@ async function init() {
     Object.assign(state, { packages, equipment, elements, gallery, settings, testimonials, announcements, music }); $('#musicPick').classList.toggle('hidden', !music.length); depositText('#orderDeposit', orderTotal()); depositText('#rentalDeposit', null); renderTicker(); await loadCategories();
     renderElements(); renderCategories(); renderCatalog(); setBuildMode('custom'); renderEquipment(); renderGallery(); renderContact(); cardDefaults(); setMode('login'); goStep(1);
     try { state.user = (await api('/api/me')).user; } catch {}
-    renderAuth(); refreshOrders(); checkHashLinks();
+    renderAuth(); refreshOrders(); loadExpress(); setInterval(loadExpress, 300000); loadShop(); checkHashLinks();
     if (!getCookie('mm_consent')) showCookieBanner(true); else recordVisit();
     if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token, p.kind || 'order'); } catch {} }
   } catch (err) { toast(t('Impossible de charger les données : ') + t(err.message)); }

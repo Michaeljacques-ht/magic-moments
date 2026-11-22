@@ -10,8 +10,8 @@ import { randomUUID } from 'node:crypto';
 
 export const HANDLED = Symbol('handled');
 
-export const INCOME_CATEGORIES = ['Ventes de surprises', 'Locations de matériel', 'Acomptes clients', 'Autres recettes'];
-export const EXPENSE_CATEGORIES = ['Achats de fournitures', 'Pâtisserie et fleurs', 'Salaires et primes', 'Transport et livraison', 'Carburant et électricité', 'Loyer', 'Communication et internet', 'Marketing et publicité', 'Location d’équipement', 'Entretien et réparations', 'Frais bancaires et de paiement', 'Taxes et impôts', 'Remboursements clients', 'Autres dépenses'];
+export const INCOME_CATEGORIES = ['Ventes de surprises', 'Ventes boutique', 'Locations de matériel', 'Acomptes clients', 'Autres recettes'];
+export const EXPENSE_CATEGORIES = ['Achats de fournitures', 'Achats de marchandises', 'Achat de matériel', 'Pâtisserie et fleurs', 'Salaires et primes', 'Transport et livraison', 'Carburant et électricité', 'Loyer', 'Communication et internet', 'Marketing et publicité', 'Location d’équipement', 'Entretien et réparations', 'Frais bancaires et de paiement', 'Taxes et impôts', 'Remboursements clients', 'Autres dépenses'];
 const CONTRACTS = ['CDI', 'CDD', 'Temps partiel', 'Stage', 'Journalier', 'Prestataire'];
 const JOB_TYPES = ['Temps plein', 'Temps partiel', 'Contrat', 'Stage', 'Journalier'];
 const APP_STATUS = ['new', 'shortlisted', 'interview', 'hired', 'rejected'];
@@ -43,7 +43,7 @@ const titleOf = (kind, x) => kind === 'order' ? `${x.package_name} — ${x.recip
 export function recordPayment(db, kind, x, amount, account, part, id, now) {
   if (!(amount > 0)) return;
   const base = baseRef(kind, x), n = incomesOf(db, base).length;
-  db.entries.push({ id: id(), date: now().slice(0, 10), type: 'income', category: kind === 'order' ? 'Ventes de surprises' : 'Locations de matériel', amount, account: account || 'caisse',
+  db.entries.push({ id: id(), date: now().slice(0, 10), type: 'income', category: kind === 'order' ? (x.shop ? 'Ventes boutique' : 'Ventes de surprises') : 'Locations de matériel', amount, account: account || 'caisse',
     label: (part === 'deposit' ? 'Acompte — ' : part === 'balance' ? 'Solde — ' : '') + titleOf(kind, x), ref: n ? base + ':' + (n + 1) : base, auto: true, created_at: now() });
 }
 // Marquage « payé » par l'administrateur : on n'enregistre que ce qui n'a pas encore été compté.
@@ -150,7 +150,7 @@ export async function adminRoutes(ctx, { m, p, b, u, req, res, json }) {
     const d = today(), mStart = d.slice(0, 8) + '01', r = report(db, mStart, d), soon = Date.now() + 7 * 864e5;
     return done({
       month_income: r.income, month_expense: r.expense, month_result: r.result, cash_total: r.cash_total, receivable: r.receivable, payroll_due: r.payroll_due,
-      orders_pending: db.orders.filter(o => o.status === 'pending').length, orders_total: db.orders.length,
+      orders_pending: db.orders.filter(o => o.status === 'pending').length, shop_low: (db.products || []).filter(x => x.active !== false && x.stock <= (x.min_stock ?? 2)).length, stock_low: ['products', 'equipment', 'supplies'].reduce((a, k) => a + (db[k] || []).filter(x => x.active !== false && !x.needs_price && x.stock <= (x.min_stock || 0)).length, 0), express_today: db.orders.filter(o => o.express && !['cancelled', 'completed'].includes(o.status) && o.express_date === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Port-au-Prince' }).format(new Date())).length, orders_total: db.orders.length,
       payments_to_check: db.orders.filter(o => o.payment_status === 'pending_verification').length,
       rentals_pending: db.rentals.filter(x => x.status === 'pending').length, rentals_to_check: db.rentals.filter(x => x.payment_status === 'pending_verification').length, applications_new: db.applications.filter(a => a.status === 'new').length,
       employees_active: db.employees.filter(e => e.status === 'active').length,
@@ -225,7 +225,7 @@ export async function adminRoutes(ctx, { m, p, b, u, req, res, json }) {
     commit(() => {
       for (const emp of db.employees.filter(e => e.status === 'active' && e.hire_date.slice(0, 7) <= b.period)) {
         if (db.payroll.some(s => s.employee_id === emp.id && s.period === b.period)) continue;
-        const days = emp.pay_type === 'daily' ? 26 : 0, adv = db.advances.filter(a => a.employee_id === emp.id && !a.settled_in).reduce((x, a) => x + a.amount, 0);
+        const worked = new Set((db.timeEntries || []).filter(t => t.employee_id === emp.id && t.status === 'approved' && t.end && t.date.startsWith(b.period)).map(t => t.date)).size, days = emp.pay_type === 'daily' ? (worked || 26) : 0, adv = db.advances.filter(a => a.employee_id === emp.id && !a.settled_in).reduce((x, a) => x + a.amount, 0);
         const s = computeSlip({ id: id(), period: b.period, employee_id: emp.id, name: emp.name, role: emp.role, pay_type: emp.pay_type, rate: emp.salary, days, base: slipBase(emp, days), bonus: 0, deductions: 0, advances: adv, note: '', status: 'draft', created_at: now() });
         db.payroll.push(s); created.push(s);
       }

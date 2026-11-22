@@ -49,7 +49,7 @@ export function view(S, kind, x) {
     recipient: x.recipient || '', city: x.city || '', date: kind === 'order' ? x.event_at : x.start_at, end: x.end_at || null, days: x.days || null, message: x.message || '',
     status: x.status, payment_status: x.payment_status || 'unpaid', stage: stageOf(kind, x), total, paid, remaining: Math.max(0, total - paid),
     can_pay: S.canCollect() && S.partsOf(kind, x).length > 0, declared: (x.payments || []).some(a => a.status === 'declared'),
-    live_url: x.live_url || '', live_requested: !!x.live_requested, music: x.personalization?.music || '', created_at: x.created_at
+    express: !!x.express, shop: !!x.shop, express_slot: x.express_slot || '', live_url: x.live_url || '', live_requested: !!x.live_requested, music: x.personalization?.music || '', created_at: x.created_at
   };
 }
 

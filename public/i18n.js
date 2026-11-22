@@ -209,7 +209,36 @@ export const HT = {
   'Votre nom': 'Non ou', 'Téléphone / WhatsApp': 'Telefòn / WhatsApp', 'Courriel (recommandé : suivi, reçus)': 'Imèl (rekòmande : swivi, resi)',
   'Aucun compte nécessaire : suivez votre demande avec sa référence et votre téléphone.': 'Ou pa bezwen kont : swiv demann ou ak referans li ak telefòn ou.', 'Indiquez votre nom': 'Bay non ou',
   'Adresse courriel invalide.': 'Adrès imèl la pa bon.',
-  'Demande enregistrée (référence {r}) ! Réglez l’acompte pour bloquer le matériel.': 'Demann lan anrejistre (referans {r})! Peye avans lan pou bloke materyèl la.', 'Demande de location enregistrée — référence {r}. Suivez-la dans « Suivre ma commande ».': 'Demann lokasyon an anrejistre — referans {r}. Swiv li nan « Swiv kòmand mwen ».', 'Surprise': 'Sipriz'
+  'Demande enregistrée (référence {r}) ! Réglez l’acompte pour bloquer le matériel.': 'Demann lan anrejistre (referans {r})! Peye avans lan pou bloke materyèl la.', 'Demande de location enregistrée — référence {r}. Suivez-la dans « Suivre ma commande ».': 'Demann lokasyon an anrejistre — referans {r}. Swiv li nan « Swiv kòmand mwen ».', 'Surprise': 'Sipriz',
+  // V19 — cadeau express
+  '⚡ Cadeau express': '⚡ Kado eksprès', 'Cadeau express': 'Kado eksprès', 'Cadeau express (aujourd’hui)': 'Kado eksprès (jodi a)', '⚡ Cadeau express aujourd’hui': '⚡ Kado eksprès jodi a',
+  '⚡ CADEAU EXPRESS': '⚡ KADO EKSPRÈS', 'Un cadeau livré aujourd’hui': 'Yon kado ki rive jodi a',
+  'Commandez avant {c} : livraison aujourd’hui à {v}. Frais express : {f}.': 'Kòmande anvan {c} : n ap livre jodi a nan {v}. Frè eksprès : {f}.',
+  'Les cadeaux express du jour sont fermés (commande avant {c}). Revenez demain dès {s}, ou planifiez une surprise pour une autre date.': 'Kado eksprès jodi a fèmen (kòmande anvan {c}). Tounen demen apati {s}, oswa planifye yon sipriz pou yon lòt dat.',
+  'Toutes les livraisons express du jour sont réservées. Revenez demain, ou planifiez une surprise pour une autre date.': 'Tout livrezon eksprès jodi a rezève. Tounen demen, oswa planifye yon sipriz pou yon lòt dat.',
+  'Le cadeau express n’est pas disponible pour le moment.': 'Kado eksprès la pa disponib pou kounye a.', 'Planifier une surprise': 'Planifye yon sipriz',
+  'frais express inclus': 'frè eksprès ladan l', 'Offrir aujourd’hui': 'Ofri l jodi a', 'Cadeau': 'Kado', 'Frais express': 'Frè eksprès', 'Aujourd’hui': 'Jodi a',
+  'Commander et payer {m}': 'Kòmande epi peye {m}', 'Commander et payer': 'Kòmande epi peye',
+  'Livré aujourd’hui dans le créneau choisi. Paiement de la totalité à la commande.': 'L ap rive jodi a nan lè ou chwazi a. Ou peye tout lajan an lè w kòmande.',
+  '🎁 Pour qui ?': '🎁 Pou ki moun?', '📍 Où et quand ?': '📍 Ki kote e ki lè?', '💌 De la part de': '💌 Sa soti nan men',
+  'Nom du destinataire': 'Non moun k ap resevwa l', 'Téléphone du destinataire': 'Telefòn moun k ap resevwa l', 'Occasion': 'Okazyon', 'Ville': 'Vil',
+  'Créneau de livraison (aujourd’hui)': 'Lè livrezon (jodi a)', 'Adresse de livraison': 'Adrès livrezon', 'Point de repère (facultatif)': 'Pwen repè (si w vle)',
+  'Mot sur la carte (facultatif)': 'Mo sou kat la (si w vle)', 'Votre téléphone / WhatsApp': 'Telefòn / WhatsApp ou', 'Votre courriel (reçu et suivi)': 'Imèl ou (resi ak swivi)',
+  'Aucun compte nécessaire. Vous recevez la référence, le reçu et le suivi par courriel.': 'Ou pa bezwen kont. W ap resevwa referans lan, resi a ak swivi a pa imèl.',
+  'Amour': 'Lanmou', 'Félicitations': 'Konpliman', 'Merci': 'Mèsi', 'Prompt rétablissement': 'Bon gerizon', 'Juste pour faire plaisir': 'Jis pou fè plezi',
+  'Cadeau express enregistré — référence {r}. Réglez-le maintenant pour lancer la livraison.': 'Kado eksprès la anrejistre — referans {r}. Peye l kounye a pou nou lanse livrezon an.',
+  // V20 — boutique de cadeaux
+  'Boutique': 'Boutik', 'Boutique de cadeaux': 'Boutik kado', '🛍️ BOUTIQUE DE CADEAUX': '🛍️ BOUTIK KADO', 'Des cadeaux prêts à offrir': 'Kado ki pare pou ofri',
+  'Choisissez vos cadeaux, ajoutez-les au panier, puis faites-les livrer ou retirez-les sur place.': 'Chwazi kado ou yo, mete yo nan panye a, epi fè yo livre oswa vin pran yo.',
+  'Rechercher un cadeau': 'Chèche yon kado', 'Mon panier': 'Panye mwen', '🛒 Mon panier': '🛒 Panye mwen', 'Coup de cœur': 'Pi renmen', 'Plus que {n}': 'Rete {n} sèlman', 'Épuisé': 'Fini',
+  'Ajouter': 'Ajoute', 'Aucun cadeau ne correspond à votre recherche.': 'Pa gen kado ki koresponn ak rechèch ou.', 'Votre panier est vide.': 'Panye ou vid.',
+  '🚚 Livraison ou retrait': '🚚 Livrezon oswa retrè', 'Livraison': 'Livrezon', 'Retrait sur place': 'Vin pran l sou plas', 'gratuit': 'gratis', 'offerte': 'gratis', 'offerte dès {m}': 'gratis apati {m}',
+  'Date de livraison': 'Dat livrezon', 'Date de retrait': 'Dat pou vin pran l', 'C’est un cadeau pour quelqu’un d’autre': 'Se yon kado pou yon lòt moun',
+  'Emballage cadeau (+{m})': 'Anbalaj kado (+{m})', 'Emballage cadeau': 'Anbalaj kado', 'Articles': 'Atik', '💌 Vos coordonnées': '💌 Enfòmasyon ou', 'Complétez les champs obligatoires.': 'Ranpli chan obligatwa yo.',
+  'Aucun compte nécessaire. Paiement de la totalité à la commande ; référence, reçu et suivi par courriel.': 'Ou pa bezwen kont. Ou peye tout lajan an lè w kòmande ; referans, resi ak swivi pa imèl.',
+  'Commande enregistrée — référence {r}. Réglez-la maintenant pour que nous la préparions.': 'Kòmand lan anrejistre — referans {r}. Peye l kounye a pou nou ka prepare l.',
+  '🛍️ Ajoutez des cadeaux de la boutique': '🛍️ Ajoute kado nan boutik la', 'Fleurs, peluches, chocolats… livrés avec votre surprise.': 'Flè, toutou, chokola… n ap livre yo ansanm ak sipriz ou a.',
+  'Fleurs': 'Flè', 'Peluches': 'Toutou', 'Chocolats et douceurs': 'Chokola ak dous', 'Paniers gourmands': 'Panye manje', 'Bijoux et accessoires': 'Bijou ak akseswa', 'Parfums et beauté': 'Pafen ak bote', 'Cartes et ballons': 'Kat ak balon', 'Personnalisés': 'Pèsonalize'
 };
 
 // Éléments dont le contenu contient du balisage (marqués data-i18n dans la page).

@@ -74,14 +74,15 @@ const thumbHTML = (id, rm, wide) => `<span class="thumb ${wide ? 'wide' : ''}"><
 /* ---------- Navigation ---------- */
 const VIEWS = [
   { id: 'dashboard', ico: '📊', label: 'Tableau de bord' },
-  { id: 'orders', ico: '🧾', label: 'Commandes', badge: d => d.orders_pending + d.payments_to_check },
+  { id: 'orders', ico: '🧾', label: 'Commandes', badge: d => d.orders_pending + d.payments_to_check + (d.express_today || 0) },
   { id: 'rentals', ico: '🪑', label: 'Locations', badge: d => d.rentals_pending + (d.rentals_to_check || 0) },
-  { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location'], ['music', 'Musiques (YouTube)']] },
+  { id: 'catalog', ico: '🎁', label: 'Catalogue', badge: d => d.to_price, tabs: [['packages', 'Surprises prêtes'], ['elements', 'Éléments à composer'], ['categories', 'Catégories'], ['equipment', 'Matériel de location'], ['music', 'Musiques (YouTube)'], ['shop', 'Boutique de cadeaux']] },
+  { id: 'stock', ico: '📦', label: 'Stock', badge: d => d.stock_low || 0, tabs: [['overview', 'État du stock'], ['moves', 'Mouvements'], ['supplies', 'Fournitures']] },
   { id: 'content', ico: '🖼️', label: 'Site et contenu', tabs: [['contact', 'Coordonnées'], ['slides', 'Diaporama d’accueil'], ['announcements', 'Annonces'], ['gallery', 'Réalisations'], ['testimonials', 'Témoignages'], ['faq', 'FAQ']] },
-  { id: 'hr', ico: '👥', label: 'Ressources humaines', badge: d => d.applications_new, tabs: [['recruit', 'Recrutement'], ['staff', 'Personnel'], ['payroll', 'Paie et avances']] },
+  { id: 'hr', ico: '👥', label: 'Ressources humaines', badge: d => d.applications_new, tabs: [['recruit', 'Recrutement'], ['staff', 'Personnel'], ['tasks', 'Tâches'], ['time', 'Heures et pointage'], ['payroll', 'Paie et avances']] },
   { id: 'accounting', ico: '📒', label: 'Comptabilité', tabs: [['summary', 'Synthèse'], ['journal', 'Journal'], ['accounts', 'Comptes']] },
   { id: 'traffic', ico: '📍', label: 'Visites et connexions' },
-  { id: 'settings', ico: '⚙️', label: 'Paramètres', tabs: [['general', 'Général'], ['payments', 'Moyens de paiement'], ['messages', 'Messages par étape']] }
+  { id: 'settings', ico: '⚙️', label: 'Paramètres', tabs: [['general', 'Général'], ['payments', 'Moyens de paiement'], ['express', 'Cadeau express'], ['messages', 'Messages par étape']] }
 ];
 const S = { view: 'dashboard', tab: {}, dash: null, settings: {}, period: { from: today().slice(0, 8) + '01', to: today() }, orderFilter: { q: '', status: 'open', pay: '' } };
 // Menu vertical unique : les sous-sections s'affichent sous la rubrique ouverte.
@@ -120,8 +121,8 @@ RENDER.dashboard = async view => {
   if (!(st.hero_slides || []).length) warn.push(['Diaporama d’accueil vide : ajoutez vos photos et affiches.', 'content', 'slides']);
   const noPhoto = cat.packages.filter(p => p.active !== false && !p.photo).length; if (noPhoto) warn.push([`${noPhoto} surprise(s) prête(s) sans photo.`, 'catalog', 'packages']);
   const todo = [
-    [d.orders_pending, 'commande(s) à confirmer', 'orders'], [d.payments_to_check, 'paiement(s) à vérifier', 'orders'], [d.rentals_pending, 'location(s) à confirmer', 'rentals'],
-    [d.applications_new, 'nouvelle(s) candidature(s)', 'hr', 'recruit'], [d.to_price, 'élément(s) du catalogue à tarifer', 'catalog', 'elements']
+    [d.express_today, '⚡ cadeau(x) express à livrer aujourd’hui', 'orders'], [d.orders_pending, 'commande(s) à confirmer', 'orders'], [d.payments_to_check, 'paiement(s) à vérifier', 'orders'], [d.rentals_pending, 'location(s) à confirmer', 'rentals'],
+    [d.applications_new, 'nouvelle(s) candidature(s)', 'hr', 'recruit'], [d.stock_low, 'article(s) à réapprovisionner (stock sous le seuil)', 'stock', 'overview'], [d.to_price, 'élément(s) du catalogue à tarifer', 'catalog', 'elements']
   ].filter(x => x[0]);
   const max = Math.max(1, ...d.months.flatMap(x => [x.income, x.expense]));
   view.innerHTML = `
@@ -147,14 +148,14 @@ const lineText = x => [x.name, (x.choices || []).length ? '(' + x.choices.map(c 
 RENDER.orders = async view => {
   const [orders, st] = await Promise.all([api('/api/orders'), api('/api/settings')]); S.settings = st;
   const f = S.orderFilter;
-  const groups = { open: ['pending', 'confirmed', 'preparing', 'in_progress'], pending: ['pending'], done: ['completed'], cancelled: ['cancelled'], all: null };
-  const list = orders.filter(o => (!groups[f.status] || groups[f.status].includes(o.status)) && (!f.pay || (f.pay === 'unpaid' ? o.payment_status !== 'paid' : o.payment_status === f.pay)) && (!f.q || JSON.stringify([o.package_name, o.recipient, o.city, o.contact, o.id]).toLowerCase().includes(f.q.toLowerCase())))
-    .sort((a, b) => (a.status === 'pending') - (b.status === 'pending') || 0).sort((a, b) => a.event_at.localeCompare(b.event_at));
+  const groups = { open: ['pending', 'confirmed', 'preparing', 'in_progress'], express: ['pending', 'confirmed', 'preparing', 'in_progress'], shop: null, pending: ['pending'], done: ['completed'], cancelled: ['cancelled'], all: null };
+  const list = orders.filter(o => (!groups[f.status] || groups[f.status].includes(o.status)) && (f.status !== 'express' || o.express) && (f.status !== 'shop' || o.shop) && (!f.pay || (f.pay === 'unpaid' ? o.payment_status !== 'paid' : o.payment_status === f.pay)) && (!f.q || JSON.stringify([o.package_name, o.recipient, o.city, o.contact, o.id]).toLowerCase().includes(f.q.toLowerCase())))
+    .sort((a, b) => (a.status === 'pending') - (b.status === 'pending') || 0).sort((a, b) => a.event_at.localeCompare(b.event_at)).sort((a, b) => (b.express && !['completed', 'cancelled'].includes(b.status)) - (a.express && !['completed', 'cancelled'].includes(a.status)));
   view.innerHTML = `<div class="toolbar"><label class="grow">Rechercher<input id="oq" value="${h(f.q)}" placeholder="Nom, téléphone, ville, référence…"></label>
-    <label>Statut<select id="os">${[['open', 'En cours (à traiter)'], ['pending', 'À confirmer'], ['done', 'Terminées'], ['cancelled', 'Annulées'], ['all', 'Toutes']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+    <label>Statut<select id="os">${[['open', 'En cours (à traiter)'], ['express', '⚡ Cadeaux express'], ['shop', '🛍️ Boutique'], ['pending', 'À confirmer'], ['done', 'Terminées'], ['cancelled', 'Annulées'], ['all', 'Toutes']].map(([v, l]) => `<option value="${v}" ${f.status === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
     <label>Paiement<select id="op">${[['', 'Tous'], ['unpaid', 'Non payées'], ['pending_verification', 'À vérifier'], ['paid', 'Payées']].map(([v, l]) => `<option value="${v}" ${f.pay === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
     <p class="muted">${list.length} commande(s), triées par date d’événement.</p>
-    <div class="list">${list.map(o => { const c = o.contact || {}; return `<article class="item"><div class="item-head"><div class="grow"><strong>${h(o.package_name)} — ${h(o.recipient)}</strong> ${o.guest ? '<span class="pill">Sans compte</span>' : ''} ${o.lang === 'ht' ? '<span class="pill">Kreyòl</span>' : ''}
+    <div class="list">${list.map(o => { const c = o.contact || {}; return `<article class="item"><div class="item-head"><div class="grow"><strong>${h(o.package_name)} — ${h(o.recipient)}</strong> ${o.express ? `<span class="pill express">⚡ Express ${h(o.express_date === new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Port-au-Prince' }).format(new Date()) ? 'aujourd’hui' : o.express_date)} · ${h(o.express_slot)}</span>` : ''} ${o.shop ? `<span class="pill shop">🛍️ Boutique · ${o.delivery === 'pickup' ? 'retrait' : 'livraison'}</span>` : ''} ${o.guest ? '<span class="pill">Sans compte</span>' : ''} ${o.lang === 'ht' ? '<span class="pill">Kreyòl</span>' : ''}
       <p>📅 ${h(fmtDT(o.event_at))} · 📍 ${h(o.city)} (${h(c.department || '')}) · 👤 ${h(c.sender_name || '')} ${h(c.sender_phone || '')}</p></div>
       <div style="text-align:right"><strong>${money(o.amount_due || o.total_htg)}</strong><br>${pill(o.status)} ${pill(o.payment_status)}</div></div>
       <details><summary>Détails et suivi</summary>
@@ -174,7 +175,7 @@ RENDER.orders = async view => {
         </div>
         <div class="form-actions"><button class="btn primary sm save-order" data-id="${o.id}">Enregistrer</button>
           ${st.online_payment && o.pay_token ? `<button class="btn line sm copy-link" data-link="${h(location.origin + '/#payer=' + o.id + '.' + o.pay_token)}">Copier le lien de paiement</button>` : ''}
-          <button class="btn line sm stage-msgs" data-kind="order" data-id="${o.id}">💬 Étapes et WhatsApp</button>
+          <button class="btn line sm stage-msgs" data-kind="order" data-id="${o.id}">💬 Étapes et WhatsApp</button><button class="btn line sm mk-task" data-kind="order" data-id="${o.id}" data-title="${h('Livrer « ' + o.package_name + ' » à ' + o.recipient + ' — ' + o.city)}">📋 Confier une tâche</button>
           ${o.payment_status === 'paid' ? `<button class="btn line sm receipt" data-id="${o.id}">Reçu</button>` : ''}</div>
         <div class="stage-box" data-box="${o.id}"></div>
       </details></article>`; }).join('') || '<p class="empty">Aucune commande pour ce filtre.</p>'}</div>`;
@@ -244,7 +245,7 @@ RENDER.rentals = async view => {
         </div>
         <div class="form-actions"><button class="btn primary sm save-rental" data-id="${r.id}">Enregistrer</button>
           ${st.online_payment && r.pay_token ? `<button class="btn line sm copy-link" data-link="${h(location.origin + '/#payer-location=' + r.id + '.' + r.pay_token)}">Copier le lien de paiement</button>` : ''}
-          <button class="btn line sm stage-msgs" data-kind="rental" data-id="${r.id}">💬 Étapes et WhatsApp</button></div>
+          <button class="btn line sm stage-msgs" data-kind="rental" data-id="${r.id}">💬 Étapes et WhatsApp</button><button class="btn line sm mk-task" data-kind="rental" data-id="${r.id}" data-title="${h('Livrer et installer : ' + r.equipment_name + ' — ' + r.city)}">📋 Confier une tâche</button></div>
         <div class="stage-box" data-box="${r.id}"></div>
       </details></article>`; }).join('') || '<p class="empty">Aucune location pour ce filtre.</p>'}</div>`;
   $('#rs').onchange = () => { f.status = $('#rs').value; RENDER.rentals(view); };
@@ -269,6 +270,7 @@ async function showStages(btn) {
 }
 document.addEventListener('click', safe(async e => {
   const b = e.target.closest('.stage-msgs'); if (b) return showStages(b);
+  const mt = e.target.closest('.mk-task'); if (mt) { const T = await api('/api/admin/team'); return taskForm(T, null, { title: mt.dataset.title, priority: 'normal', status: 'todo', link: (mt.dataset.kind === 'order' ? 'o:' : 'r:') + mt.dataset.id }); }
   const c = e.target.closest('.copy-text'); if (c) { try { await navigator.clipboard.writeText(c.dataset.text); toast('Message copié'); } catch { prompt('Message', c.dataset.text); } }
 }));
 
@@ -290,7 +292,8 @@ function packageForm(p, categories) {
     [{ name: 'price_htg', label: 'Prix de départ (HTG)', type: 'number', min: 1, required: true }, { name: 'guests', label: 'Invités / format', placeholder: 'Ex. Jusqu’à 20 invités' }, { name: 'lead_time', label: 'Délai pour commander', placeholder: 'Ex. 48 h à l’avance' }],
     { name: 'includes', label: 'Ce qui est inclus (une ligne par élément)', type: 'textarea', lines: true, placeholder: 'Exemple : Gâteau 8 parts' },
     { name: 'options', label: 'Options payantes (une par ligne : nom | prix HTG)', type: 'textarea', rows: 2, placeholder: 'Exemple : Bouquet de roses | 2500' },
-    { name: 'active', label: 'Visible par les clients', type: 'checkbox', checked: true }
+    { name: 'active', label: 'Visible par les clients', type: 'checkbox', checked: true },
+    { name: 'express', label: '⚡ Cadeau express : peut être livré le jour même', type: 'checkbox' }
   ];
   const ht = [{ name: 'name_ht', label: 'Nom (kreyòl)' }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 2 }, { name: 'includes_ht', label: 'Inclus (kreyòl, une ligne par élément)', type: 'textarea', lines: true }, [{ name: 'guests_ht', label: 'Invités (kreyòl)' }, { name: 'lead_time_ht', label: 'Délai (kreyòl)' }]];
   const values = p ? { ...p, price_htg: p.needs_price ? '' : p.price_htg, active: p.active !== false || !!p.needs_price, options: (p.options || []).map(x => x.name + ' | ' + x.price).join('\n'), includes: (p.includes || []).join('\n'), includes_ht: (p.includes_ht || []).join('\n') } : { active: true };
@@ -477,7 +480,22 @@ RENDER['hr:staff'] = async view => {
     ${HR.employees.length ? `<table class="table"><thead><tr><th>Nom</th><th>Poste</th><th>Contrat</th><th class="num">Salaire</th><th>Paiement</th><th>Statut</th><th></th></tr></thead><tbody>${HR.employees.map(e => `<tr><td data-l="Nom"><b>${h(e.name)}</b><br><span class="muted">${h(e.phone)}</span></td><td data-l="Poste">${h(e.role)}${e.department ? '<br><span class="muted">' + h(e.department) + '</span>' : ''}</td><td data-l="Contrat">${h(e.contract)}<br><span class="muted">depuis ${h(fmtDate(e.hire_date))}</span></td><td class="num" data-l="Salaire">${money(e.salary)}${e.pay_type === 'daily' ? ' / jour' : ' / mois'}</td><td data-l="Paiement">${h(e.pay_method || '—')}</td><td>${e.status === 'active' ? '<span class="pill ok">Actif</span>' : '<span class="pill grey">Sorti</span>'}</td><td><button class="btn sm line e-edit" data-id="${e.id}">Fiche</button> <button class="btn sm line e-adv" data-id="${e.id}">Avance</button></td></tr>`).join('')}</tbody></table>` : '<p class="empty">Aucun employé enregistré.</p>'}`;
   view.querySelectorAll('.e-edit').forEach(b => b.onclick = () => employeeForm(HR.employees.find(e => e.id === b.dataset.id)));
   view.querySelectorAll('.e-adv').forEach(b => b.onclick = () => advanceForm(HR.employees.find(e => e.id === b.dataset.id)));
+  const team = await api('/api/admin/team');
+  view.querySelectorAll('.e-edit').forEach(b => { const x = team.employees.find(e => e.id === b.dataset.id); if (!x) return;
+    b.insertAdjacentHTML('afterend', ` <button class="btn line sm e-acc" data-id="${x.id}">${x.account ? (x.account.disabled ? '🔒 Accès coupé' : '🔑 Espace actif') : '🔑 Créer l’accès'}</button>${x.clocked_in ? ' <span class="pill ok">Au travail</span>' : ''}`); });
+  view.querySelectorAll('.e-acc').forEach(b => b.onclick = () => accessForm(team.employees.find(e => e.id === b.dataset.id)));
 };
+function accessForm(x) {
+  const a = x.account;
+  openForm({ title: 'Espace employé — ' + x.name, values: { email: a?.email || x.email || '' }, fields: [{ name: 'email', label: 'Courriel de connexion', type: 'email', required: true }],
+    before: `<p class="hint">L’employé se connecte sur <b>${h(location.origin)}/equipe</b> : il y voit ses tâches, pointe son arrivée et son départ, suit ses heures et consulte ses fiches de paie.</p>
+      ${a ? `<p>${a.disabled ? '<span class="pill bad">Accès coupé</span>' : '<span class="pill ok">Accès actif</span>'} ${a.last_login ? 'Dernière connexion : ' + h(fmtDT(a.last_login)) : 'Jamais connecté'}${a.invited_at ? ' · invitation du ' + h(fmtDT(a.invited_at)) : ''}</p>` : ''}`,
+    extra: a ? `<p><button type="button" class="btn line sm" id="accToggle">${a.disabled ? 'Rétablir l’accès' : 'Couper l’accès'}</button></p>` : '',
+    submit: a ? 'Renvoyer l’invitation' : 'Créer l’accès et envoyer l’invitation',
+    onRender: () => { $('#accToggle') && ($('#accToggle').onclick = safe(async () => { await post('/api/admin/team/access', { employee_id: x.id, action: a.disabled ? 'enable' : 'disable' }); closeModal(); toast(a.disabled ? 'Accès rétabli' : 'Accès coupé'); render(); })); },
+    onSubmit: async v => { const r = await post('/api/admin/team/access', { employee_id: x.id, email: v.email, action: 'invite' }); toast('Invitation envoyée par courriel');
+      setTimeout(() => prompt('Lien d’activation (à envoyer aussi par WhatsApp si besoin, valable 7 jours) :', r.link), 200); render(); } });
+}
 function employeeForm(e, preset = {}) {
   openForm({ title: e ? 'Fiche : ' + e.name : 'Nouvel employé',
     fields: [[{ name: 'name', label: 'Nom complet', required: true }, { name: 'role', label: 'Poste', required: true }, { name: 'department', label: 'Service' }],
@@ -494,6 +512,63 @@ function advanceForm(e) {
     fields: [[{ name: 'amount', label: 'Montant (HTG)', type: 'number', min: 1, required: true }, { name: 'date', label: 'Date', type: 'date', required: true }, { name: 'account', label: 'Payée depuis', type: 'select', options: accountOptions() }], { name: 'note', label: 'Motif' }],
     values: { date: today(), account: 'caisse' }, onSubmit: async v => { await post('/api/admin/advances', { ...v, employee_id: e.id }); toast('Avance enregistrée'); render(); } });
 }
+
+/* ---------- Tâches du personnel ---------- */
+const PRIO_PILL = { low: 'grey', normal: '', high: 'bad' }, TASK_PILL = { todo: 'warn', in_progress: '', done: 'ok', cancelled: 'grey' };
+function taskForm(T, t, preset = {}) {
+  const v = t ? { ...t, due_at: t.due_at ? new Date(new Date(t.due_at).getTime() - new Date(t.due_at).getTimezoneOffset() * 60000).toISOString().slice(0, 16) : '', link: t.order_id ? 'o:' + t.order_id : t.rental_id ? 'r:' + t.rental_id : '' } : { priority: 'normal', status: 'todo', ...preset };
+  const chosen = new Set(t?.employee_ids || preset.employee_ids || []), active = T.employees.filter(e => e.status === 'active' || chosen.has(e.id));
+  openForm({ title: t ? 'Tâche : ' + t.title : 'Nouvelle tâche', values: v,
+    fields: [{ name: 'title', label: 'Tâche', required: true, placeholder: 'Ex. Livrer la surprise de Marie à Delmas' }, { name: 'description', label: 'Consignes', type: 'textarea', rows: 3 },
+      [{ name: 'priority', label: 'Priorité', type: 'select', options: Object.entries(T.priorities) }, { name: 'due_at', label: 'À faire pour le', type: 'datetime-local' }, { name: 'status', label: 'Statut', type: 'select', options: Object.entries(T.statuses) }],
+      { name: 'link', label: 'Liée à (facultatif)', type: 'select', options: [['', '— Aucune —'], ...T.orders.map(o => ['o:' + o.id, '🎁 ' + o.label]), ...T.rentals.map(r => ['r:' + r.id, '🪑 ' + r.label])] }],
+    before: `<div class="section-box"><b>Confier à</b><div class="check-list">${active.map(e => `<label class="check"><input type="checkbox" class="tEmp" value="${e.id}" ${chosen.has(e.id) ? 'checked' : ''}> ${h(e.name)} <span class="muted">${h(e.role)}${e.account && !e.account.disabled ? '' : ' · sans espace'}</span></label>`).join('') || '<p class="muted">Ajoutez d’abord des employés.</p>'}</div></div>`,
+    extra: t?.comments?.length ? `<div class="section-box"><b>Suivi</b>${t.comments.map(c => `<p>${h(fmtDT(c.at))} — <b>${h(c.by)}</b> : ${h(T.statuses[c.status] || '')}${c.note ? ' · « ' + h(c.note) + ' »' : ''}</p>`).join('')}</div>` : '',
+    remove: t ? async () => { await post('/api/admin/tasks/remove', { id: t.id }); toast('Tâche supprimée'); render(); } : null,
+    onSubmit: async f => { const ids = [...document.querySelectorAll('.tEmp:checked')].map(x => x.value); if (!ids.length) throw Error('Choisissez au moins un employé');
+      await post('/api/admin/tasks', { id: t?.id, title: f.title, description: f.description, priority: f.priority, status: f.status, due_at: f.due_at ? new Date(f.due_at).toISOString() : null, employee_ids: ids, order_id: f.link?.startsWith('o:') ? f.link.slice(2) : null, rental_id: f.link?.startsWith('r:') ? f.link.slice(2) : null });
+      toast('Tâche enregistrée — l’employé est prévenu par courriel'); if (S.view === 'hr' && S.tab.hr === 'tasks') render(); } });
+}
+RENDER['hr:tasks'] = async view => {
+  const T = await api('/api/admin/team'), f = S.taskFilter ??= { status: 'open', emp: '' };
+  actions('<button class="btn primary" id="newTask">＋ Nouvelle tâche</button>'); $('#newTask').onclick = () => taskForm(T, null);
+  const list = T.tasks.filter(t => (f.status === 'all' || (f.status === 'open' ? ['todo', 'in_progress'].includes(t.status) : t.status === f.status)) && (!f.emp || t.employee_ids.includes(f.emp)))
+    .sort((a, b) => (b.priority === 'high') - (a.priority === 'high') || String(a.due_at || '9').localeCompare(String(b.due_at || '9')));
+  view.innerHTML = `<div class="toolbar"><label>Statut<select id="tS">${[['open', 'À faire et en cours'], ['done', 'Terminées'], ['all', 'Toutes']].map(([k, l]) => `<option value="${k}" ${f.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label><label>Employé<select id="tE"><option value="">Tous</option>${T.employees.map(e => `<option value="${e.id}" ${f.emp === e.id ? 'selected' : ''}>${h(e.name)}</option>`).join('')}</select></label></div>
+    <div class="list">${list.map(t => `<article class="item clickable" data-id="${t.id}"><div class="item-head"><div class="grow"><strong>${h(t.title)}</strong> <span class="pill ${PRIO_PILL[t.priority]}">${h(T.priorities[t.priority])}</span>
+      <p>👤 ${h(t.assignees.join(', '))}${t.due_at ? ' · 📅 ' + h(fmtDT(t.due_at)) : ''}${t.link ? ` · ${t.link.kind === 'order' ? '🎁' : '🪑'} ${h(t.link.ref)} ${h(t.link.city || '')}` : ''}</p>${t.comments?.length ? `<p class="muted">Dernier suivi : ${h(t.comments.at(-1).by)} — ${h(t.comments.at(-1).note || T.statuses[t.comments.at(-1).status])}</p>` : ''}</div>
+      <div><span class="pill ${TASK_PILL[t.status]}">${h(T.statuses[t.status])}</span>${t.due_at && t.status !== 'done' && Date.parse(t.due_at) < Date.now() ? ' <span class="pill bad">En retard</span>' : ''}</div></div></article>`).join('') || '<p class="empty">Aucune tâche pour ce filtre.</p>'}</div>`;
+  $('#tS').onchange = e => { f.status = e.target.value; render(); }; $('#tE').onchange = e => { f.emp = e.target.value; render(); };
+  view.querySelectorAll('[data-id]').forEach(x => x.onclick = () => taskForm(T, T.tasks.find(t => t.id === x.dataset.id)));
+};
+/* ---------- Heures et pointage ---------- */
+const dur = m => `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, '0')}`;
+const hhmm = iso => iso ? new Intl.DateTimeFormat('fr-FR', { timeZone: 'America/Port-au-Prince', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '';
+function timeForm(T, x) {
+  openForm({ title: x ? 'Corriger le pointage' : 'Ajouter des heures', values: x ? { employee_id: x.employee_id, date: x.date, start: hhmm(x.start), end: hhmm(x.end), break_minutes: x.break_minutes || 0, status: x.status === 'pending' ? 'approved' : x.status, note: x.note } : { date: today(), start: '08:00', end: '17:00', break_minutes: 60, status: 'approved' },
+    fields: [[{ name: 'employee_id', label: 'Employé', type: 'select', options: T.employees.map(e => [e.id, e.name]) }, { name: 'date', label: 'Date', type: 'date', required: true }],
+      [{ name: 'start', label: 'Arrivée', type: 'time', required: true }, { name: 'end', label: 'Départ', type: 'time' }, { name: 'break_minutes', label: 'Pause (minutes)', type: 'number', min: 0 }],
+      [{ name: 'status', label: 'Statut', type: 'select', options: [['approved', 'Validé'], ['pending', 'À valider'], ['rejected', 'Refusé']] }, { name: 'note', label: 'Note' }]],
+    remove: x ? async () => { await post('/api/admin/time/remove', { id: x.id }); toast('Pointage supprimé'); render(); } : null,
+    onSubmit: async v => { await post('/api/admin/time', { ...v, id: x?.id, break_minutes: Number(v.break_minutes || 0) }); toast('Heures enregistrées'); render(); } });
+}
+RENDER['hr:time'] = async view => {
+  const T = await api('/api/admin/team'), f = S.timeFilter ??= { month: today().slice(0, 7), emp: '' };
+  actions('<button class="btn primary" id="newTime">＋ Ajouter des heures</button>'); $('#newTime').onclick = () => timeForm(T, null);
+  const list = T.time.filter(t => t.date.startsWith(f.month) && (!f.emp || t.employee_id === f.emp)), pend = list.filter(t => t.status === 'pending' && t.end);
+  const per = {}; for (const t of list) { const k = t.employee_id; per[k] ??= { name: t.name, min: 0, ok: 0, days: new Set() }; per[k].min += t.minutes; if (t.status === 'approved') { per[k].ok += t.minutes; per[k].days.add(t.date); } }
+  view.innerHTML = `<div class="toolbar"><label>Mois<input type="month" id="tmM" value="${f.month}"></label><label>Employé<select id="tmE"><option value="">Tous</option>${T.employees.map(e => `<option value="${e.id}" ${f.emp === e.id ? 'selected' : ''}>${h(e.name)}</option>`).join('')}</select></label>${pend.length ? `<button class="btn primary" id="tmAll">✔ Valider les ${pend.length} pointage(s) en attente</button>` : ''}</div>
+    <div class="kpis">${Object.values(per).map(x => `<div class="kpi"><small>${h(x.name)}</small><strong>${dur(x.ok)}</strong><small>${x.days.size} jour(s) validé(s)${x.min > x.ok ? ' · ' + dur(x.min - x.ok) + ' à valider' : ''}</small></div>`).join('') || '<p class="muted">Aucun pointage ce mois-ci.</p>'}</div>
+    <table class="table"><thead><tr><th>Date</th><th>Employé</th><th>Arrivée → départ</th><th class="num">Durée</th><th>Source</th><th>Statut</th><th></th></tr></thead><tbody>${list.map(t => `<tr><td>${h(t.date)}</td><td>${h(t.name)}</td><td>${hhmm(t.start)} → ${t.end ? hhmm(t.end) : '<span class="pill ok">en cours</span>'}${t.break_minutes ? ` <span class="muted">(pause ${t.break_minutes} min)</span>` : ''}${t.note ? `<br><span class="muted">${h(t.note)}</span>` : ''}</td><td class="num" data-l="Durée">${t.end ? dur(t.minutes) : '—'}</td><td>${t.source === 'clock' ? '📱 Pointage' : t.source === 'manual' ? '✍️ Saisie admin' : '✍️ Pointage corrigé'}</td>
+      <td><span class="pill ${{ approved: 'ok', pending: 'warn', rejected: 'bad' }[t.status]}">${{ approved: 'Validé', pending: 'À valider', rejected: 'Refusé' }[t.status]}</span></td><td><span class="row-actions">${t.status !== 'approved' && t.end ? `<button class="btn sm primary tmOk" data-id="${t.id}">✔</button>` : ''}${t.status === 'pending' && t.end ? `<button class="btn sm line tmNo" data-id="${t.id}">✖</button>` : ''}<button class="btn sm line tmEd" data-id="${t.id}">✎</button></span></td></tr>`).join('') || '<tr><td colspan="7" class="empty">Aucun pointage.</td></tr>'}</tbody></table>
+    <p class="muted">Les jours validés d’un employé payé à la journée sont repris automatiquement lors de la génération de la paie du mois.</p>`;
+  const st = async (ids, status) => { await post('/api/admin/time/status', { ids, status }); toast(status === 'approved' ? 'Heures validées' : 'Pointage refusé'); render(); };
+  $('#tmM').onchange = e => { f.month = e.target.value || today().slice(0, 7); render(); }; $('#tmE').onchange = e => { f.emp = e.target.value; render(); };
+  $('#tmAll') && ($('#tmAll').onclick = safe(() => st(pend.map(t => t.id), 'approved')));
+  view.querySelectorAll('.tmOk').forEach(b => b.onclick = safe(() => st([b.dataset.id], 'approved')));
+  view.querySelectorAll('.tmNo').forEach(b => b.onclick = safe(() => st([b.dataset.id], 'rejected')));
+  view.querySelectorAll('.tmEd').forEach(b => b.onclick = () => timeForm(T, list.find(t => t.id === b.dataset.id)));
+};
 
 RENDER['hr:payroll'] = async view => {
   await loadHR(); await loadAccounts();
@@ -651,6 +726,115 @@ RENDER['settings:payments'] = async view => {
   draw();
 };
 
+/* ============ Cadeau express ============ */
+RENDER['settings:express'] = async view => {
+  const d = await api('/api/admin/express'), X = d.settings, st = d.status;
+  const why = { off: 'désactivé', no_gift: 'aucun cadeau express choisi', late: 'heure limite passée ou plus de créneau aujourd’hui', full: 'toutes les livraisons du jour sont réservées' };
+  view.innerHTML = `<div class="card"><h3>⚡ Cadeau express — livré le jour même</h3>
+      <p>${st.open ? `<span class="pill ok">Ouvert aujourd’hui</span> ${st.slots.length} créneau(x) encore disponible(s), ${st.left} livraison(s) restante(s).` : `<span class="pill warn">Fermé aujourd’hui</span> ${why[st.reason] || ''}.`} <span class="muted">(heure d’Haïti)</span></p>
+      <label class="check"><input type="checkbox" id="xEnabled" ${X.enabled ? 'checked' : ''}> Proposer le cadeau express sur le site</label>
+      <div class="grid3"><label>Premières livraisons<input type="time" id="xStart" value="${h(X.start)}"></label><label>Dernières livraisons (fin)<input type="time" id="xEnd" value="${h(X.end)}"></label><label>Heure limite pour commander<input type="time" id="xCutoff" value="${h(X.cutoff)}"></label></div>
+      <div class="grid3"><label>Durée d’un créneau (minutes)<input type="number" id="xSlot" min="30" max="480" step="15" value="${X.slot_minutes}"></label><label>Délai de préparation (minutes)<input type="number" id="xLead" min="0" max="480" step="15" value="${X.lead_minutes}"></label><label>Frais express (HTG)<input type="number" id="xFee" min="0" value="${X.fee}"></label></div>
+      <div class="grid2"><label>Livraisons express maximum par jour<input type="number" id="xLimit" min="1" max="500" value="${X.daily_limit}"></label><label>Villes desservies (une par ligne)<textarea id="xCities" rows="5">${h(X.cities.join('\n'))}</textarea></label></div></div>
+    <div class="card" style="margin-top:16px"><h3>🎁 Cadeaux proposés en express</h3><p class="muted">Choisissez les formules prêtes à partir dans la journée (fleurs, paniers, gâteaux, coffrets…). Le client règle la totalité à la commande.</p>
+      <div class="check-list">${d.packages.map(x => `<label class="check"><input type="checkbox" class="xPack" value="${x.id}" ${x.express ? 'checked' : ''} ${x.active ? '' : 'disabled'}> ${h(x.name)} <span class="muted">${money(x.price_htg)}${x.active ? '' : ' · masquée'}</span></label>`).join('')}</div></div>
+    <div class="form-actions"><button type="button" class="btn primary" id="xSave">Enregistrer</button></div>`;
+  $('#xSave').onclick = safe(async () => {
+    await post('/api/admin/express', { enabled: $('#xEnabled').checked, start: $('#xStart').value, end: $('#xEnd').value, cutoff: $('#xCutoff').value, slot_minutes: Number($('#xSlot').value), lead_minutes: Number($('#xLead').value), fee: Number($('#xFee').value), daily_limit: Number($('#xLimit').value), cities: $('#xCities').value, packages: [...view.querySelectorAll('.xPack:checked')].map(x => x.value) });
+    toast('Cadeau express enregistré'); RENDER['settings:express'](view);
+  });
+};
+
+/* ============ Boutique de cadeaux ============ */
+RENDER['catalog:shop'] = async view => {
+  const d = await api('/api/admin/shop'), S = d.settings;
+  actions('<button class="btn primary" id="newProd">＋ Nouvel article</button>');
+  const form = x => { const media = { photo: x?.photo || '' };
+    openForm({ title: x ? x.name : 'Nouvel article', values: x ? { ...x } : { active: true, stock: 10, category: d.categories[0] },
+      fields: [[{ name: 'name', label: 'Nom de l’article', required: true }, { name: 'name_ht', label: 'Nom (kreyòl)' }],
+        [{ name: 'category', label: 'Catégorie', type: 'select', options: d.categories.map(c => [c, c]) }, { name: 'price_htg', label: 'Prix (HTG)', type: 'number', min: 1, required: true }, { name: 'stock', label: 'Stock disponible', type: 'number', min: 0, required: true }],
+        { name: 'description', label: 'Description', type: 'textarea', rows: 2 }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 2 },
+        [{ name: 'active', label: 'En vente dans la boutique', type: 'checkbox' }, { name: 'featured', label: '⭐ Mettre en avant', type: 'checkbox' }]],
+      extra: '<div class="section-box"><b>Photo de l’article</b><input type="file" id="qFile" accept="image/*"><div class="thumbs" id="qThumb"></div></div>',
+      onRender: () => { const draw = () => { $('#qThumb').innerHTML = media.photo ? thumbHTML(media.photo, 'q') : '<span class="muted">Sans photo, la boutique affiche un pictogramme.</span>'; }; draw();
+        $('#qThumb').onclick = e => { if (e.target.dataset.rm) { media.photo = ''; draw(); } };
+        $('#qFile').onchange = safe(async e => { const f = e.target.files[0]; if (f) { toast('Envoi…'); media.photo = await uploadImage(f); draw(); toast('Photo ajoutée'); } }); },
+      remove: x ? async () => { await post('/api/admin/shop/products/remove', { id: x.id }); toast('Article supprimé'); render(); } : null,
+      onSubmit: async v => { await post('/api/admin/shop/products', { ...v, id: x?.id, photo: media.photo }); toast('Article enregistré'); refreshDash(); render(); } }); };
+  $('#newProd').onclick = () => form(null);
+  view.innerHTML = `<div class="card"><h3>🛍️ Réglages de la boutique</h3>
+      <label class="check"><input type="checkbox" id="sEnabled" ${S.enabled ? 'checked' : ''}> Boutique ouverte sur le site</label>
+      <div class="grid3"><label class="check"><input type="checkbox" id="sDelivery" ${S.delivery ? 'checked' : ''}> Livraison à domicile</label><label>Frais de livraison (HTG)<input type="number" id="sFee" min="0" value="${S.delivery_fee}"></label><label>Livraison offerte dès (HTG, 0 = jamais)<input type="number" id="sFree" min="0" value="${S.free_from}"></label></div>
+      <div class="grid3"><label class="check"><input type="checkbox" id="sPickup" ${S.pickup ? 'checked' : ''}> Retrait sur place</label><label>Adresse de retrait<input id="sPickAddr" value="${h(S.pickup_address)}" placeholder="Ex. Delmas 33, en face de…"></label><label>Délai minimum (jours)<input type="number" id="sLead" min="0" max="30" value="${S.lead_days}"></label></div>
+      <div class="grid3"><label>Emballage cadeau (HTG, 0 = non proposé)<input type="number" id="sWrap" min="0" value="${S.gift_wrap}"></label></div>
+      <div class="form-actions"><button type="button" class="btn primary" id="sSave">Enregistrer les réglages</button></div></div>
+    <p class="muted" style="margin-top:16px">${d.products.length} article(s). Le stock est réservé à la commande, rendu si elle est annulée ; les commandes non payées sous 48 h sont annulées automatiquement.</p>
+    <table class="table"><thead><tr><th></th><th>Article</th><th>Catégorie</th><th class="num">Prix</th><th class="num">Stock</th><th>Statut</th></tr></thead><tbody>${d.products.map(x => `<tr class="clickable" data-id="${x.id}"><td>${visual(x.photo, '🎁')}</td><td><b>${h(x.name)}</b>${x.featured ? ' ⭐' : ''}</td><td>${h(x.category)}</td><td class="num" data-l="Prix">${money(x.price_htg)}</td><td class="num" data-l="Stock">${x.stock <= 2 ? `<span class="pill ${x.stock ? 'warn' : 'bad'}">${x.stock}</span>` : x.stock}</td><td>${x.active !== false ? '<span class="pill ok">En vente</span>' : '<span class="pill grey">Masqué</span>'}</td></tr>`).join('')}</tbody></table>`;
+  $('#sSave').onclick = safe(async () => { await post('/api/admin/shop/settings', { enabled: $('#sEnabled').checked, delivery: $('#sDelivery').checked, delivery_fee: Number($('#sFee').value), free_from: Number($('#sFree').value), pickup: $('#sPickup').checked, pickup_address: $('#sPickAddr').value, lead_days: Number($('#sLead').value), gift_wrap: Number($('#sWrap').value) }); toast('Réglages de la boutique enregistrés'); });
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(d.products.find(x => x.id === tr.dataset.id)));
+};
+
+/* ============ Gestion de stock ============ */
+const KIND_ICO = { product: '🛍️', equipment: '🪑', supply: '🧰' };
+const MOVE_PILL = { in: 'ok', return: 'ok', out: '', sale: '', loss: 'bad', adjust: 'warn' };
+function stockMoveForm(d, x, type, view) {
+  const T = { in: 'Entrée de stock', out: 'Sortie de stock', loss: 'Perte / casse', adjust: 'Inventaire' }[type];
+  const fields = type === 'adjust' ? [{ name: 'quantity', label: `Quantité comptée (${x.unit})`, type: 'number', min: 0, required: true }]
+    : [{ name: 'quantity', label: `Quantité (${x.unit})`, type: 'number', min: 1, required: true }];
+  if (type === 'in') fields.push([{ name: 'unit_cost', label: 'Coût unitaire (HTG)', type: 'number', min: 0 }, { name: 'supplier', label: 'Fournisseur (facultatif)' }],
+    [{ name: 'expense', label: 'Enregistrer la dépense en comptabilité', type: 'checkbox' }, { name: 'account', label: 'Payé depuis', type: 'select', options: d.accounts.map(a => [a.id, a.name]) }]);
+  fields.push({ name: 'reason', label: type === 'loss' ? 'Que s’est-il passé ?' : 'Motif ou note (facultatif)', placeholder: type === 'out' ? 'Ex. utilisé pour la commande de Marie' : '' });
+  openForm({ title: `${T} — ${x.name}`, values: type === 'adjust' ? { quantity: x.stock } : { quantity: 1, unit_cost: x.cost || '', supplier: x.supplier || '', expense: true },
+    before: `<p class="hint">Stock actuel : <b>${x.stock} ${h(x.unit)}</b>${type === 'adjust' ? '. Indiquez la quantité réellement comptée : l’écart est enregistré.' : ''}</p>`, fields,
+    onSubmit: async v => { await post('/api/admin/stock/move', { kind: x.kind, id: x.id, type, quantity: Number(v.quantity), unit_cost: v.unit_cost === '' || v.unit_cost == null ? null : Number(v.unit_cost), supplier: v.supplier || '', expense: !!v.expense, account: v.account, reason: v.reason || '' }); toast('Stock mis à jour'); refreshDash(); RENDER['stock:overview'](view); } });
+}
+RENDER['stock:overview'] = async view => {
+  const d = await api('/api/admin/stock'), f = S.stockFilter ??= { kind: '', low: false, q: '' };
+  actions('<a class="btn line" href="/api/admin/stock/export.csv">⬇ Exporter (CSV)</a>');
+  const list = d.items.filter(x => (!f.kind || x.kind === f.kind) && (!f.low || x.low) && (!f.q || (x.name + ' ' + x.category).toLowerCase().includes(f.q.toLowerCase()))).sort((a, b) => (b.low - a.low) || a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
+  view.innerHTML = `<div class="kpis"><div class="kpi accent"><small>Valeur du stock (au coût)</small><strong>${money(d.totals.value)}</strong></div><div class="kpi"><small>Articles suivis</small><strong>${d.totals.items}</strong></div><div class="kpi"><small>À réapprovisionner</small><strong>${d.totals.low}</strong></div><div class="kpi"><small>Épuisés</small><strong>${d.totals.out}</strong></div></div>
+    <div class="toolbar"><label class="grow">Rechercher<input id="stQ" value="${h(f.q)}" placeholder="Article, catégorie…"></label><label>Famille<select id="stKind"><option value="">Toutes</option>${Object.entries(d.kinds).map(([k, l]) => `<option value="${k}" ${f.kind === k ? 'selected' : ''}>${KIND_ICO[k]} ${h(l)}</option>`).join('')}</select></label><label class="check"><input type="checkbox" id="stLow" ${f.low ? 'checked' : ''}> À réapprovisionner</label></div>
+    <table class="table"><thead><tr><th></th><th>Article</th><th>Famille</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Coût</th><th class="num">Valeur</th><th>Actions</th></tr></thead><tbody>${list.map(x => `<tr data-k="${x.kind}" data-id="${x.id}" class="${x.active ? '' : 'dim'}"><td>${visual(x.photo, KIND_ICO[x.kind])}</td><td><b>${h(x.name)}</b><br><span class="muted">${h(x.category)}${x.active ? '' : ' · inactif'}</span></td><td>${h(x.kind_label)}</td>
+      <td class="num" data-l="Stock">${!x.stock ? '<span class="pill bad">0</span>' : x.low ? `<span class="pill warn">${x.stock}</span>` : x.stock} <span class="muted">${h(x.unit)}</span></td><td class="num" data-l="Seuil">${x.min_stock}</td><td class="num" data-l="Coût">${x.cost ? money(x.cost) : '—'}</td><td class="num" data-l="Valeur">${x.value ? money(x.value) : '—'}</td>
+      <td><span class="row-actions"><button class="btn sm primary" data-act="in" title="Entrée">＋ Entrée</button><button class="btn sm line" data-act="out" title="Sortie">− Sortie</button><button class="btn sm line" data-act="loss" title="Perte / casse">Perte</button><button class="btn sm line" data-act="adjust" title="Inventaire">Inventaire</button><button class="btn sm line" data-act="set" title="Seuil et coût">⚙</button><button class="btn sm line" data-act="hist" title="Historique">🕘</button></span></td></tr>`).join('') || '<tr><td colspan="8" class="empty">Aucun article.</td></tr>'}</tbody></table>
+    <p class="muted">Les ventes de la boutique et les annulations mettent le stock à jour automatiquement. Le matériel de location n’est pas déduit pendant une location (la disponibilité est calculée par dates) : enregistrez ici les achats, casses et pertes.</p>`;
+  $('#stQ').oninput = e => { f.q = e.target.value; clearTimeout(S.stT); S.stT = setTimeout(() => { RENDER['stock:overview'](view).then(() => { const i = $('#stQ'); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }); }, 300); };
+  $('#stKind').onchange = e => { f.kind = e.target.value; RENDER['stock:overview'](view); };
+  $('#stLow').onchange = e => { f.low = e.target.checked; RENDER['stock:overview'](view); };
+  view.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+    const tr = b.closest('tr'), x = d.items.find(i => i.kind === tr.dataset.k && i.id === tr.dataset.id), act = b.dataset.act;
+    if (act === 'hist') { S.stockItem = { kind: x.kind, id: x.id, name: x.name }; go('stock', 'moves'); return; }
+    if (act === 'set') {
+      if (x.kind === 'supply') { go('stock', 'supplies'); return; }
+      openForm({ title: 'Seuil d’alerte et coût — ' + x.name, values: { min_stock: x.min_stock, cost: x.cost }, fields: [[{ name: 'min_stock', label: 'Alerter quand le stock descend à', type: 'number', min: 0, required: true }, { name: 'cost', label: 'Coût d’achat unitaire (HTG)', type: 'number', min: 0, required: true }]],
+        onSubmit: async v => { await post('/api/admin/stock/settings', { kind: x.kind, id: x.id, min_stock: Number(v.min_stock), cost: Number(v.cost) }); toast('Réglages enregistrés'); refreshDash(); RENDER['stock:overview'](view); } });
+      return;
+    }
+    stockMoveForm(d, x, act, view);
+  });
+};
+RENDER['stock:moves'] = async view => {
+  const it = S.stockItem, d = await api('/api/admin/stock'), moves = it ? await api(`/api/admin/stock/moves?kind=${it.kind}&item=${it.id}`) : d.moves;
+  actions('<a class="btn line" href="/api/admin/stock/export.csv">⬇ Exporter l’état du stock (CSV)</a>');
+  view.innerHTML = `${it ? `<p class="toolbar"><span>Historique de <b>${h(it.name)}</b></span><button class="btn line sm" id="stAll">Voir tous les mouvements</button></p>` : '<p class="muted">Les 300 derniers mouvements, du plus récent au plus ancien.</p>'}
+    <table class="table"><thead><tr><th>Date</th><th>Article</th><th>Mouvement</th><th class="num">Quantité</th><th class="num">Avant → après</th><th>Motif</th><th>Par</th></tr></thead><tbody>${moves.map(x => `<tr><td>${h(fmtDT(x.created_at))}</td><td>${KIND_ICO[x.kind] || ''} ${h(x.item_name)}</td><td><span class="pill ${MOVE_PILL[x.type] || ''}">${h(d.types[x.type] || x.type)}</span></td><td class="num" data-l="Quantité"><b>${x.qty > 0 ? '+' : ''}${x.qty}</b></td><td class="num" data-l="Stock">${x.before} → ${x.after}</td><td>${h(x.reason || '')}${x.unit_cost ? ` <span class="muted">· ${money(x.unit_cost)}/u</span>` : ''}${x.ref ? ` <span class="muted">· réf. ${h(x.ref.slice(0, 8).toUpperCase())}</span>` : ''}</td><td>${h(x.user)}</td></tr>`).join('') || '<tr><td colspan="7" class="empty">Aucun mouvement.</td></tr>'}</tbody></table>`;
+  $('#stAll') && ($('#stAll').onclick = () => { S.stockItem = null; RENDER['stock:moves'](view); });
+};
+RENDER['stock:supplies'] = async view => {
+  const d = await api('/api/admin/stock'), list = d.items.filter(x => x.kind === 'supply');
+  actions('<button class="btn primary" id="newSup">＋ Nouvelle fourniture</button>');
+  const form = x => openForm({ title: x ? x.name : 'Nouvelle fourniture', values: x || { unit: 'unité', min_stock: 1, cost: 0, stock: 0, active: true, category: d.supply_categories[0] },
+    fields: [[{ name: 'name', label: 'Nom', required: true }, { name: 'category', label: 'Catégorie', type: 'select', options: d.supply_categories.map(c => [c, c]) }], [{ name: 'unit', label: 'Unité (pièce, rouleau, boîte…)', required: true }, ...(x ? [] : [{ name: 'stock', label: 'Stock initial', type: 'number', min: 0 }]), { name: 'min_stock', label: 'Seuil d’alerte', type: 'number', min: 0, required: true }],
+      [{ name: 'cost', label: 'Coût unitaire (HTG)', type: 'number', min: 0 }, { name: 'supplier', label: 'Fournisseur habituel' }], { name: 'active', label: 'Suivie', type: 'checkbox' }],
+    before: x ? `<p class="hint">Stock actuel : <b>${x.stock} ${h(x.unit)}</b>. Pour le modifier, utilisez Entrée, Sortie ou Inventaire dans « État du stock ».</p>` : '',
+    remove: x ? async () => { await post('/api/admin/stock/supplies/remove', { id: x.id }); toast('Fourniture supprimée'); render(); } : null,
+    onSubmit: async v => { await post('/api/admin/stock/supplies', { ...v, id: x?.id, stock: Number(v.stock || 0), min_stock: Number(v.min_stock), cost: Number(v.cost || 0) }); toast('Fourniture enregistrée'); refreshDash(); render(); } });
+  $('#newSup').onclick = () => form(null);
+  view.innerHTML = `<p class="muted">Fournitures internes (ballons, emballages, cartes…) : elles ne sont pas vendues mais doivent être suivies pour ne jamais manquer.</p>
+    <table class="table"><thead><tr><th>Fourniture</th><th>Catégorie</th><th class="num">Stock</th><th class="num">Seuil</th><th class="num">Coût</th><th>Fournisseur</th></tr></thead><tbody>${list.map(x => `<tr class="clickable" data-id="${x.id}"><td><b>${h(x.name)}</b>${x.active ? '' : ' <span class="pill grey">non suivie</span>'}</td><td>${h(x.category)}</td><td class="num" data-l="Stock">${x.low ? `<span class="pill ${x.stock ? 'warn' : 'bad'}">${x.stock}</span>` : x.stock} <span class="muted">${h(x.unit)}</span></td><td class="num" data-l="Seuil">${x.min_stock}</td><td class="num" data-l="Coût">${x.cost ? money(x.cost) : '—'}</td><td>${h(x.supplier || '—')}</td></tr>`).join('') || '<tr><td colspan="6" class="empty">Aucune fourniture.</td></tr>'}</tbody></table>`;
+  view.querySelectorAll('tr[data-id]').forEach(tr => tr.onclick = () => form(list.find(x => x.id === tr.dataset.id)));
+};
+
 /* ============ Musiques (YouTube) ============ */
 RENDER['catalog:music'] = async view => {
   const d = await api('/api/admin/music'), cats = [...new Set([...d.categories, ...d.list.map(m => m.category)])];
@@ -699,7 +883,7 @@ RENDER['settings:messages'] = async view => {
 };
 
 /* ---------- Démarrage ---------- */
-$('#loginForm').onsubmit = safe(async e => { e.preventDefault(); const f = new FormData(e.target); const r = await post('/api/auth/login', { email: f.get('email'), password: f.get('password') }); if (r.user.role !== 'admin') throw Error('Ce compte n’a pas accès à l’administration'); start(r.user); });
+$('#loginForm').onsubmit = safe(async e => { e.preventDefault(); const f = new FormData(e.target); const r = await post('/api/auth/login', { email: f.get('email'), password: f.get('password') }); if (r.user.role === 'staff') { location.href = '/equipe'; return; } if (r.user.role !== 'admin') throw Error('Ce compte n’a pas accès à l’administration'); start(r.user); });
 $('#logout').onclick = safe(async () => { await post('/api/auth/logout', {}); location.href = '/'; });
 function start(user) {
   S.user = user; $('#login').classList.add('hidden'); $('#app').classList.remove('hidden');

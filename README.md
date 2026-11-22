@@ -174,3 +174,47 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 ### V18.1
 - Titres réduits (accueil et sections) pour une lecture plus confortable sur ordinateur et téléphone.
 - V18.2 : mentions « Demande sans création de compte » et « Confirmation par notre équipe » retirées de l’accueil.
+
+## Version 19 — Cadeau express (livré le jour même)
+
+- Nouvelle section **⚡ Cadeau express** (menu, bouton de l’accueil, menu mobile) : le client choisit un cadeau prêt à partir, indique le destinataire, la ville, l’adresse, un **créneau de livraison d’aujourd’hui** et un mot pour la carte, puis **paie la totalité** (frais express inclus). Aucun compte nécessaire : référence, reçu et suivi par courriel.
+- Les créneaux proposés tiennent compte de l’heure d’Haïti et du délai de préparation ; après l’heure limite (ou quand le quota du jour est atteint), la section indique de revenir le lendemain ou de planifier une surprise.
+- **Paramètres → Cadeau express** : activation, heures de livraison, heure limite pour commander, durée des créneaux, délai de préparation, frais express, nombre maximum de livraisons par jour, villes desservies et choix des cadeaux proposés (aussi via la case « Cadeau express » d’une formule).
+- Côté équipe : alerte prioritaire « ⚡ CADEAU EXPRESS », badge et ligne dans le tableau de bord, étiquette « ⚡ Express aujourd’hui · créneau » et filtre « Cadeaux express » dans les commandes (affichées en premier).
+
+## Version 20 — Boutique de cadeaux
+
+- Nouvelle section **🛍️ Boutique** (menu, menu mobile) : articles prêts à offrir avec photo, description, prix et stock, filtres par catégorie et recherche, badges « Coup de cœur » et « Plus que N ».
+- **Panier** (bouton flottant 🛒, mémorisé sur l’appareil) : quantités, **livraison** (frais, gratuite dès un montant) ou **retrait sur place**, date, cadeau pour quelqu’un d’autre (destinataire et téléphone), mot sur la carte, **emballage cadeau** en option. Paiement de la totalité, sans compte ; courriel récapitulatif avec lien de paiement et de suivi.
+- Chaque achat devient une commande « 🛍️ Boutique » : étapes, paiement, reçus, WhatsApp et suivi comme les surprises ; recette comptable « Ventes boutique ».
+- **Stock** réservé à la commande, rendu si elle est annulée ; commandes non payées sous 48 h annulées automatiquement.
+- **Catalogue → Boutique de cadeaux** : réglages (ouverture, livraison, frais, livraison offerte, retrait et adresse, délai minimum, emballage) et articles (nom FR/KR, catégorie, prix, stock, description, photo, mise en avant, en vente ou masqué). 10 articles d’exemple à adapter (prix et stock indicatifs). Alerte au tableau de bord quand un article est presque épuisé ; filtre « Boutique » dans les commandes.
+
+### V20.1 — Articles de la boutique dans une surprise
+- À l’étape 1 de « Créer une surprise » (composition libre ou surprise prête), le client peut ajouter des articles de la boutique avec leur quantité : prix ajouté au total, lignes « 🛍️ » dans le récapitulatif, la commande, les courriels et les reçus.
+- Stock vérifié et réservé à la commande, rendu si elle est annulée ; une surprise peut aussi être composée uniquement d’articles de la boutique.
+
+## Version 21 — Gestion de stock
+
+- Nouveau menu **📦 Stock** dans l’administration (badge = articles sous le seuil d’alerte) :
+  - **État du stock** : articles de la boutique, matériel de location et fournitures internes au même endroit ; stock, seuil d’alerte, coût d’achat, **valeur du stock**, filtres (famille, recherche, « à réapprovisionner ») et actions **Entrée**, **Sortie**, **Perte / casse**, **Inventaire** (quantité comptée → écart enregistré), réglage du seuil et du coût, historique de l’article. Export **CSV**.
+  - **Mouvements** : journal daté de chaque variation (avant → après, motif, coût, fournisseur, auteur, référence de commande).
+  - **Fournitures** : consommables internes (ballons, hélium, papier cadeau, rubans, cartes, bougies…) avec unité, seuil, coût et fournisseur ; 6 fournitures d’exemple.
+- Une **entrée de stock** peut créer automatiquement la dépense en comptabilité (« Achats de marchandises », « Achat de matériel » ou « Achats de fournitures »), depuis le compte choisi ; le coût unitaire est mis à jour.
+- Les **ventes de la boutique**, les articles ajoutés aux surprises, les **annulations** et les modifications de fiches sont tracés automatiquement.
+- Tableau de bord : alerte « article(s) à réapprovisionner ».
+
+## Version 22 — Espace employé
+
+- Nouvelle adresse **/equipe** (adaptée au téléphone) pour le personnel, avec un compte relié à la fiche de l’employé :
+  - **Accueil** : bouton **Pointer mon arrivée / mon départ**, temps travaillé du jour, prochaines tâches.
+  - **Tâches** : consignes, échéance, priorité, commande ou location liée (destinataire, adresse, articles, mot de la carte, téléphones à appeler, itinéraire Google Maps) ; boutons « Je commence », « Terminé », « Note ».
+  - **Heures** : pointages du mois, heures travaillées et validées, jours travaillés.
+  - **Paie** : rémunération, fiches de paie (base, primes, retenues, avances, net, statut) et avances.
+  - **Profil** et changement de mot de passe.
+- **Administration → Ressources humaines** :
+  - **Personnel** : bouton « 🔑 Créer l’accès » (invitation par courriel avec lien d’activation valable 7 jours, aussi copiable pour WhatsApp), renvoi de l’invitation, accès coupé ou rétabli, dernière connexion, badge « Au travail ».
+  - **Tâches** : création, assignation à un ou plusieurs employés, priorité, échéance, lien vers une commande ou une location, suivi des commentaires ; l’employé reçoit un courriel ; bouton « 📋 Confier une tâche » dans chaque commande et location ; alerte quand une tâche est terminée.
+  - **Heures et pointage** : pointages du mois par employé, validation ou refus (un par un ou tout d’un coup), correction et saisie manuelle (pause comprise), totaux par employé.
+  - La **paie journalière** utilise automatiquement les jours validés du mois.
+- Les comptes employés n’ont aucun accès à l’administration ; un compte désactivé est déconnecté immédiatement.

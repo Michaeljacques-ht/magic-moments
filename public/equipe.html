@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Espace employé — Magic Moments</title>
+<meta name="theme-color" content="#43005d"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="stylesheet" href="/equipe.css">
+</head>
+<body>
+<div id="toast" class="toast hidden" role="status"></div>
+
+<main id="login" class="auth hidden">
+  <img src="/logo-header.png" alt="Magic Moments" class="auth-logo">
+  <h1>Espace employé</h1><p class="muted">Vos tâches, votre pointage, vos heures et votre paie.</p>
+  <form id="loginForm" class="card"><label>Courriel<input name="email" type="email" required autocomplete="username"></label>
+    <label>Mot de passe<input name="password" type="password" required minlength="8" autocomplete="current-password"></label>
+    <button class="btn primary full">Se connecter</button>
+    <button type="button" class="linkbtn" id="forgot">Mot de passe oublié ?</button></form>
+</main>
+
+<main id="activate" class="auth hidden">
+  <img src="/logo-header.png" alt="Magic Moments" class="auth-logo">
+  <h1>Bienvenue dans l’équipe !</h1><p class="muted">Choisissez votre mot de passe pour activer votre espace employé.</p>
+  <form id="activateForm" class="card"><label>Nouveau mot de passe<input name="password" type="password" required minlength="8" autocomplete="new-password"></label>
+    <label>Confirmez le mot de passe<input name="confirm" type="password" required minlength="8" autocomplete="new-password"></label>
+    <button class="btn primary full">Activer mon espace</button></form>
+</main>
+
+<div id="app" class="hidden">
+  <header class="top"><img src="/logo-mark.png" alt="" class="mark"><div><small>Espace employé</small><strong id="who"></strong></div><button class="icon-btn" id="refresh" aria-label="Actualiser">⟳</button></header>
+  <section id="v-home" class="view"></section>
+  <section id="v-tasks" class="view hidden"></section>
+  <section id="v-time" class="view hidden"></section>
+  <section id="v-pay" class="view hidden"></section>
+  <section id="v-me" class="view hidden"></section>
+  <nav class="tabs">
+    <button data-v="home" class="on"><i>🏠</i>Accueil</button><button data-v="tasks"><i>📋</i>Tâches<b id="tBadge" class="hidden"></b></button>
+    <button data-v="time"><i>⏱️</i>Heures</button><button data-v="pay"><i>💰</i>Paie</button><button data-v="me"><i>👤</i>Profil</button>
+  </nav>
+</div>
+<script src="/equipe.js" type="module"></script>
+</body>
+</html>

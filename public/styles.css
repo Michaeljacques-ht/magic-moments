@@ -390,3 +390,65 @@ h1{font-size:clamp(32px,3.8vw,52px);letter-spacing:-1px;line-height:1.08}
 h2{font-size:clamp(25px,2.8vw,36px)}
 .hero p{font-size:16px}
 @media(max-width:700px){h1{font-size:clamp(28px,7.5vw,36px)!important}h2{font-size:24px!important}.hero p{font-size:14.5px}}
+
+/* V19 — cadeau express */
+.express-band{background:linear-gradient(135deg,#2a0038 0%,#43005d 55%,#6a1d86 100%);color:#fff}
+.express-band h2{color:#fff}.express-band p{color:#f1e3f5}.express-band .eyebrow{color:var(--gold)}
+.express-band a{color:var(--gold);font-weight:700}
+.express-band .closed{display:inline-block;background:#ffffff1a;border:1px solid #ffffff33;border-radius:10px;padding:6px 10px;margin-top:4px}
+.express-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:18px}
+.express-card{background:#fff;color:var(--ink);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 14px 34px #0004}
+.express-card .card-image{aspect-ratio:4/3;background:var(--pink);display:grid;place-items:center;font-size:44px;overflow:hidden;position:relative}
+.express-card .card-image img{width:100%;height:100%;object-fit:cover}
+.express-body{padding:14px 16px 16px;display:flex;flex-direction:column;gap:6px;flex:1}
+.express-body p{color:var(--muted)!important;font-size:13.5px;margin:0;flex:1}
+.express-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+.express-foot span{display:flex;flex-direction:column}.express-foot b{color:var(--purple);font-size:17px}.express-foot small{font-size:11px;color:var(--muted)}
+.express-foot .btn{padding:9px 14px;font-size:13px;white-space:nowrap}
+.express-foot .btn:disabled{opacity:.45;cursor:not-allowed}
+.nav-express{color:#9a5b00!important;font-weight:800!important}
+.express-cta{border-color:var(--gold)!important;color:var(--gold)!important}
+.form-h{font-size:15px;margin:16px 0 4px;color:var(--purple)}
+.x-badge{display:inline-block;background:#fff3cd;color:#8a5a00!important;font-weight:800;border-radius:20px;padding:3px 10px;font-size:12.5px!important}
+.express-foot b{white-space:nowrap}
+
+/* V20 — boutique de cadeaux */
+.shop-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:18px}
+.shop-tools input{max-width:300px;margin:0}
+.shop-tools .chips{display:flex;gap:6px;flex-wrap:wrap}
+.shop-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:18px}
+.shop-card{background:#fff;border:1px solid var(--line);border-radius:18px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 24px #43005d12;transition:transform .2s}
+.shop-card:hover{transform:translateY(-3px)}
+.shop-img{position:relative;aspect-ratio:1/1;background:linear-gradient(135deg,#fbf2fd,#fff7e0);display:grid;place-items:center;font-size:64px;overflow:hidden}
+.shop-img img{width:100%;height:100%;object-fit:cover}
+.shop-star,.shop-low{position:absolute;top:10px;left:10px;background:#fff;border-radius:20px;padding:3px 9px;font-size:11px;color:var(--purple);box-shadow:0 2px 8px #0002}
+.shop-low{left:auto;right:10px;color:#a04000}
+.shop-body{padding:12px 14px 14px;display:flex;flex-direction:column;gap:4px;flex:1}
+.shop-body p{color:var(--muted);font-size:13px;margin:0;flex:1}
+.shop-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}
+.shop-foot>b{color:var(--purple);font-size:17px;white-space:nowrap}
+.shop-foot .btn{padding:8px 14px;font-size:13px}
+.pill-out{background:#eee;color:#777;border-radius:20px;padding:5px 10px;font-size:12px;font-weight:700}
+.qty{display:inline-flex;align-items:center;border:2px solid var(--purple);border-radius:22px;overflow:hidden}
+.qty button{border:0;background:#fff;color:var(--purple);width:32px;height:32px;font-size:18px;font-weight:800;cursor:pointer}
+.qty button:disabled{opacity:.3}.qty em{font-style:normal;font-weight:800;min-width:24px;text-align:center}
+.cart-fab{position:fixed;right:18px;bottom:24px;z-index:70;width:62px;height:62px;border-radius:50%;border:0;background:var(--gold);font-size:26px;box-shadow:0 10px 28px #0004;cursor:pointer}
+.cart-fab .cart-n{position:absolute;top:-4px;right:-4px;background:var(--purple);color:#fff;border-radius:20px;min-width:24px;height:24px;font-size:13px;font-weight:800;display:grid;place-items:center;padding:0 6px}
+@media(max-width:900px){.cart-fab{bottom:88px}}
+.cart-lines{display:grid;gap:8px;margin:10px 0}
+.cart-line{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.cart-line .grow{flex:1;display:flex;flex-direction:column;min-width:0}.cart-line small{color:var(--muted)}
+.cart-ico{width:46px;height:46px;border-radius:10px;background:var(--pink);display:grid;place-items:center;font-size:24px;overflow:hidden;flex:none}
+.cart-ico img{width:100%;height:100%;object-fit:cover}
+.cart-sum{white-space:nowrap;color:var(--purple)}
+#cartModal .modal-content{max-height:92vh;overflow:auto}
+@media(max-width:560px){.shop-grid{grid-template-columns:1fr 1fr;gap:10px}.shop-img{font-size:46px}.shop-body strong{font-size:14px}.shop-foot{flex-direction:column;align-items:stretch}.shop-foot .btn,.shop-foot .qty{justify-content:center;width:100%}.qty button{flex:1}.cart-line{flex-wrap:wrap}}
+.shop-img{aspect-ratio:4/3}.shop-low{top:auto!important;bottom:10px;right:10px}
+
+/* V20.1 — articles de la boutique dans une surprise */
+.shop-addon{margin-top:18px;border-top:1px dashed var(--line);padding-top:6px}
+.addon-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;max-height:340px;overflow:auto;padding:2px}
+.addon{display:flex;align-items:center;gap:10px;border:1px solid var(--line);border-radius:12px;padding:8px 10px;background:#fff}
+.addon.on{border-color:var(--purple);background:#fbf4fd}
+.addon .grow{flex:1;display:flex;flex-direction:column;min-width:0}.addon small{color:var(--muted)}
+.addon .btn{padding:7px 12px;font-size:12.5px;white-space:nowrap}
