@@ -218,3 +218,11 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
   - **Heures et pointage** : pointages du mois par employé, validation ou refus (un par un ou tout d’un coup), correction et saisie manuelle (pause comprise), totaux par employé.
   - La **paie journalière** utilise automatiquement les jours validés du mois.
 - Les comptes employés n’ont aucun accès à l’administration ; un compte désactivé est déconnecté immédiatement.
+
+### V22.1
+- Bouton **Se connecter** (👤) rétabli dans l’en-tête et le menu mobile : clients avec compte, employés (redirigés vers /equipe) et administration ; bouton Déconnexion et « Bonjour … » une fois connecté.
+- Accueil sur téléphone : les 3 boutons (Voir nos surprises, Composer ma surprise, Cadeau express) sont empilés sur toute la largeur, sans débordement ; en-tête ordinateur resserré pour tout afficher.
+
+## Version 23 — Une page à la fois
+- Chaque entrée du menu (ordinateur, menu mobile, raccourcis du bas, boutons et liens internes) affiche **uniquement sa page** : Accueil, Cadeau express, Boutique, Nos surprises, Créer une surprise, Location, Réalisations, Contact, Suivre ma commande. Le site ne défile plus d’une section à l’autre ; chaque page s’ouvre en haut.
+- La page ouverte est mise en évidence dans le menu ; les boutons Précédent/Suivant du navigateur et les liens reçus (paiement, suivi) fonctionnent.

@@ -109,12 +109,15 @@ $('#authForm').onsubmit = async e => {
     toast(mode === 'reset' ? 'Mot de passe modifié. Vous êtes connecté.' : 'Bienvenue sur Magic Moments !'); refreshOrders();
   } catch (err) { toast(err.message); }
 };
+const openLogin = () => { setMode('login'); openModal(); openDrawer(false); };
+$('#loginButton').onclick = openLogin; $('#drawerLogin').onclick = openLogin;
+$('#logoutButton').onclick = () => logoutClient(); $('#drawerLogout').onclick = () => { openDrawer(false); logoutClient(); };
 async function logoutClient() { try { await post('/api/client/logout', {}); } catch {} if (state.user) { try { await post('/api/auth/logout', {}); } catch {} state.user = null; renderAuth(); } refreshOrders(); toast('Déconnexion effectuée'); }
 
 /* Liens reçus par courriel : #reset=<jeton> (mot de passe) et #payer=<commande>.<jeton> (paiement). */
 function checkHashLinks() {
   const h = location.hash, reset = /^#reset=([a-f0-9]{64})$/.exec(h), pay = /^#payer(-location)?=([a-f0-9-]{36})\.([a-f0-9]{32})$/.exec(h), follow = /^#suivre=([ol])\.([a-f0-9-]{36})\.([a-f0-9]{32})$/.exec(h);
-  if (follow) { history.replaceState(null, '', location.pathname + location.search + '#espace'); remember(follow[1] === 'l' ? 'rental' : 'order', follow[2], follow[3]); refreshOrders().then(() => { const el = document.getElementById('it-' + follow[2]); (el || $('#espace')).scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.classList.add('flash'); }); return; }
+  if (follow) { history.replaceState(null, '', location.pathname + location.search + '#espace'); showPage('espace'); remember(follow[1] === 'l' ? 'rental' : 'order', follow[2], follow[3]); refreshOrders().then(() => { const el = document.getElementById('it-' + follow[2]); (el || $('#espace')).scrollIntoView({ behavior: 'smooth', block: 'center' }); el?.classList.add('flash'); }); return; }
   if (pay) remember(pay[1] ? 'rental' : 'order', pay[2], pay[3]);
   if (!reset && !pay) return;
   history.replaceState(null, '', location.pathname + location.search);
@@ -127,11 +130,14 @@ function renderAuth() {
   const u = state.user, admin = u?.role === 'admin', client = !!u && !admin;
   for (const [k, v] of Object.entries({ sender_name: u?.name, sender_email: u?.email, sender_phone: u?.phone })) { const el = $('#orderForm [name=' + k + ']'); if (client && !el.value) el.value = v || ''; }
   for (const [k, v] of Object.entries({ name: u?.name, email: u?.email, phone: u?.phone })) { const el = $('#rentalForm [name=' + k + ']'); if (client && !el.value) el.value = v || ''; }
-  $('#identity').textContent = '';
-  // Administrateur : un seul accès, « Administration ». Les clients n'ont plus besoin de compte.
-  for (const id of ['#adminLink', '#drawerAdmin']) $(id).classList.toggle('hidden', !admin);
+  // Connexion facultative : clients avec compte, équipe (/equipe) et administration.
+  const staff = u?.role === 'staff', first = (u?.name || '').split(' ')[0];
+  $('#identity').textContent = client ? t('Bonjour {n}', { n: first }) : '';
+  for (const id of ['#adminLink', '#drawerAdmin']) { const a = $(id); a.classList.toggle('hidden', !admin && !staff); a.href = staff ? '/equipe' : '/admin'; a.textContent = t(staff ? 'Espace employé' : 'Administration'); }
+  for (const id of ['#loginButton', '#drawerLogin']) $(id).classList.toggle('hidden', !!u);
+  for (const id of ['#logoutButton', '#drawerLogout']) $(id).classList.toggle('hidden', !u);
   $$('[data-account]').forEach(a => a.classList.toggle('hidden', admin && !a.closest('.bottom-nav')));
-  $('#espace').classList.toggle('hidden', admin); $('#drawerHello').textContent = '';
+  $('#espace').classList.toggle('hidden', admin); $('#drawerHello').textContent = client ? t('Bonjour {n}', { n: first }) + ' 👋' : '';
 }
 
 
@@ -193,7 +199,7 @@ function renderCatalog() {
   renderOptions();
 }
 $('#categoryFilter').onchange = renderCatalog;
-$('#diasporaButton').onclick = () => { $('#categoryFilter').value = DIASPORA; renderCatalog(); $('#catalogue').scrollIntoView({ behavior: 'smooth' }); };
+$('#diasporaButton').onclick = () => { $('#categoryFilter').value = DIASPORA; renderCatalog(); location.hash = 'catalogue'; };
 
 /* ---------- Créer une surprise : configurateur en 3 étapes ---------- */
 state.buildMode = 'custom';
@@ -636,14 +642,31 @@ $('#menuButton').onclick = () => openDrawer(true);
 $('#drawerClose').onclick = () => openDrawer(false);
 drawer.addEventListener('click', e => { if (e.target === drawer || e.target.closest('.drawer-nav a')) openDrawer(false); });
 $('#drawerLang').onclick = () => { setLang(lang === 'ht' ? 'fr' : 'ht'); };
-function goAccount() { if (state.user?.role === 'admin') { location.href = '/admin'; return; } $('#espace').classList.remove('hidden'); $('#espace').scrollIntoView({ behavior: 'smooth' }); }
+function goAccount() { if (state.user?.role === 'admin') { location.href = '/admin'; return; } $('#espace').classList.remove('hidden'); if (location.hash === '#espace') showPage('espace'); else location.hash = 'espace'; }
 document.addEventListener('click', e => { const a = e.target.closest('[data-account]'); if (!a) return; e.preventDefault(); openDrawer(false); goAccount(); });
-// Raccourci actif selon la section visible.
-const secs = ['accueil', 'catalogue', 'commander', 'location', 'espace'].map(id => document.getElementById(id)).filter(Boolean);
-if ('IntersectionObserver' in window) {
-  const io = new IntersectionObserver(es => { for (const en of es) if (en.isIntersecting) $$('.bottom-nav a').forEach(a => a.classList.toggle('active', a.dataset.sec === en.target.id)); }, { rootMargin: '-45% 0px -50% 0px' });
-  secs.forEach(s => io.observe(s));
+/* ---------- Navigation par pages ----------
+   Chaque entrée du menu affiche uniquement sa page (pas tout le site qui défile). */
+const PAGES = { accueil: ['accueil', 'diaspora', 'avis'], express: ['express'], boutique: ['boutique'], catalogue: ['catalogue'], commander: ['commander'], location: ['location'], gallery: ['gallery'], avis: ['avis'], contact: ['contact'], espace: ['espace'], live: ['espace'] };
+const PAGE_SECTIONS = [...new Set(Object.values(PAGES).flat())];
+function showPage(id, anchor) {
+  if (!PAGES[id]) id = 'accueil';
+  const keep = PAGES[id]; state.page = id;
+  for (const s of PAGE_SECTIONS) document.getElementById(s)?.classList.toggle('off-page', !keep.includes(s));
+  const page = id === 'live' ? 'espace' : id;
+  $$('.main-nav a, .drawer-nav a').forEach(a => a.classList.toggle('current', a.getAttribute('href') === '#' + page));
+  $$('.bottom-nav a').forEach(a => a.classList.toggle('active', a.dataset.sec === page));
+  const el = anchor && document.getElementById(anchor);
+  if (el) requestAnimationFrame(() => el.scrollIntoView({ block: 'start' })); else window.scrollTo({ top: 0, behavior: 'instant' });
 }
+function routeFromHash() {
+  const h = location.hash.slice(1);
+  if (/^(reset|payer|suivre|activer)/.test(h)) return;
+  showPage(h, h === 'live' ? 'live' : null);
+}
+window.addEventListener('hashchange', routeFromHash);
+// Un clic sur la page déjà ouverte la ramène en haut.
+document.addEventListener('click', e => { const a = e.target.closest('a[href^="#"]'); if (a && a.getAttribute('href') === location.hash && PAGES[location.hash.slice(1)]) { e.preventDefault(); showPage(location.hash.slice(1)); } });
+routeFromHash();
 
 /* ---------- Diaporama d'accueil ---------- */
 let slideTimer = null, slideIdx = 0;
