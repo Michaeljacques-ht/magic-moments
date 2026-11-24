@@ -333,7 +333,8 @@ function elementForm(x, els) {
     [{ name: 'category', label: 'Dimension', required: true, placeholder: 'Ex. Pâtisserie' }, { name: 'category_ht', label: 'Dimension (kreyòl)', placeholder: 'Ex. Patisri' }],
     [{ name: 'description', label: 'Description', type: 'textarea', rows: 2 }, { name: 'description_ht', label: 'Description (kreyòl)', type: 'textarea', rows: 2 }],
     { name: 'price', label: 'Prix de base (HTG) — 0 si le prix dépend entièrement des options', type: 'number', min: 0, required: true },
-    { name: 'active', label: 'Disponible pour les clients', type: 'checkbox', checked: true }
+    { name: 'active', label: 'Disponible pour les clients', type: 'checkbox', checked: true },
+    { name: 'service', label: '🎶 Service inclus : proposé dans la section facultative « Services inclus » (livraison, animation, décoration…)', type: 'checkbox' }
   ];
   const group = (g = { name: '', name_ht: '', type: 'single', required: true, options: [] }) => `<div class="group-block" data-gid="${h(g.id || '')}"><div class="grid2"><label>Nom du choix<input class="g-name" value="${h(g.name)}" placeholder="Ex. Taille"></label><label>Nom (kreyòl)<input class="g-name-ht" value="${h(g.name_ht || '')}" placeholder="Ex. Gwosè"></label></div>
     <div class="grid2"><label>Type<select class="g-type"><option value="single" ${g.type === 'single' ? 'selected' : ''}>Un seul choix</option><option value="multi" ${g.type === 'multi' ? 'selected' : ''}>Plusieurs choix possibles</option></select></label><label class="check" style="margin-top:24px"><input type="checkbox" class="g-req" ${g.required ? 'checked' : ''}> Obligatoire</label></div>

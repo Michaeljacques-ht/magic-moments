@@ -236,12 +236,8 @@ function lineUnit(el, choices) {
 function customLines() {
   return $$('.element-row[data-on="1"]').map(r => ({ id: r.dataset.id, quantity: Math.max(1, Math.min(100, Number(r.querySelector('.el-qty').value) || 1)), choices: lineChoices(r), note: r.querySelector('.el-note').value }));
 }
-function renderElements(keep = []) {
-  const dims = [...new Set(state.elements.map(e => e.category))];
-  const dimLabel = d => { const e = state.elements.find(x => x.category === d); return (lang === 'ht' && e?.category_ht) || d; };
-  if (dimFilter === null || (dimFilter && !dims.includes(dimFilter))) dimFilter = dims[0] || '';
-  $('#dimTabs').innerHTML = [['', t('Tout')], ...dims.map(d => [d, dimLabel(d)])].map(([v, l]) => `<button type="button" class="${v === dimFilter ? 'active' : ''}" data-dim="${escapeHTML(v)}">${escapeHTML(l)}</button>`).join('');
-  $('#elementList').innerHTML = dims.map(d => `<section class="dim-block" data-dim="${escapeHTML(d)}"><h4>${escapeHTML(dimLabel(d))}</h4>${state.elements.filter(e => e.category === d).map(x => {
+const isService = e => !!e.service;
+function elementRow(x) {
     const groups = (x.groups || []).map(g => `<div class="el-group"><p class="g-title">${escapeHTML(tr(g, 'name'))} <em>${t(g.type === 'multi' ? 'plusieurs choix possibles' : g.required ? 'obligatoire' : 'facultatif')}</em></p><div class="opts">${
       (g.type === 'single' && !g.required ? `<label class="opt"><input type="radio" name="g-${x.id}-${g.id}" value="" checked><span>${t('Aucun')}</span></label>` : '') +
       g.options.map((o, i) => `<label class="opt"><input type="${g.type === 'multi' ? 'checkbox' : 'radio'}" name="g-${x.id}-${g.id}" value="${escapeHTML(o.id)}" ${g.type === 'single' && g.required && i === 0 ? 'checked' : ''}><span>${escapeHTML(optName(o))}</span>${o.price > 0 ? `<b>${plus(o.price)}</b>` : ''}</label>`).join('')}</div></div>`).join('');
@@ -252,26 +248,36 @@ function renderElements(keep = []) {
         <div class="el-foot"><div class="qty"><button type="button" class="q-btn" data-q="-1" aria-label="${t('Diminuer')}">−</button><input class="el-qty" type="number" min="1" max="100" value="1" aria-label="${t('Quantité')}"><button type="button" class="q-btn" data-q="1" aria-label="${t('Augmenter')}">+</button></div><span class="line-total"></span></div>
         <label>${t('Précisions (facultatif)')}<input class="el-note" maxlength="300" placeholder="${escapeHTML(t('Message, contenu du bouquet…'))}"></label>
         <button type="button" class="linkbtn el-remove">${t('Retirer')}</button></div></div>`;
-  }).join('')}</section>`).join('') || `<p class="empty">${t('Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.')}</p>`;
+}
+function renderElements(keep = []) {
+  // Les catégories du composeur sont affichées à la suite (plus d'onglets) ; les services vont dans « Services inclus ».
+  const main = state.elements.filter(e => !isService(e)), dims = [...new Set(main.map(e => e.category))];
+  const dimLabel = d => { const e = state.elements.find(x => x.category === d); return (lang === 'ht' && e?.category_ht) || d; };
+  $('#elementList').innerHTML = dims.map(d => `<section class="dim-block" data-dim="${escapeHTML(d)}"><h4>${escapeHTML(dimLabel(d))}</h4>${main.filter(e => e.category === d).map(elementRow).join('')}</section>`).join('') || `<p class="empty">${t('Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.')}</p>`;
+  const svc = state.elements.filter(isService);
+  $('#servicesBox').classList.toggle('hidden', !svc.length);
+  $('#serviceList').innerHTML = svc.map(elementRow).join('');
   for (const l of keep) {
     const r = document.querySelector(`.element-row[data-id="${l.id}"]`); if (!r) continue;
     toggleLine(r, true); r.querySelector('.el-qty').value = l.quantity; r.querySelector('.el-note').value = l.note || '';
     for (const [gid, v] of Object.entries(l.choices || {})) { $$(`input[name="g-${l.id}-${gid}"]`).forEach(i => { i.checked = [].concat(v).includes(i.value); }); }
   }
-  applyDimFilter(); updateTotal();
+  updateTotal();
 }
-function applyDimFilter() { $$('.dim-block').forEach(b => b.classList.toggle('hidden', !!dimFilter && b.dataset.dim !== dimFilter)); $$('#dimTabs button').forEach(b => b.classList.toggle('active', b.dataset.dim === dimFilter)); }
+const serviceLines = () => customLines().filter(l => isService(elById(l.id) || {}));
+const serviceTotal = () => serviceLines().reduce((a, l) => a + l.quantity * lineUnit(elById(l.id), l.choices), 0);
 function toggleLine(row, on) { row.dataset.on = on ? '1' : ''; row.classList.toggle('selected', on); row.querySelector('.element-details').classList.toggle('hidden', !on); row.querySelector('.el-add').textContent = on ? t('Ajouté ✓') : t('Ajouter'); }
-$('#dimTabs').onclick = e => { const b = e.target.closest('button'); if (!b) return; dimFilter = b.dataset.dim; applyDimFilter(); };
-$('#elementList').addEventListener('click', e => {
+for (const box of ['#elementList', '#serviceList']) {
+$(box).addEventListener('click', e => {
   const row = e.target.closest('.element-row'); if (!row) return;
   if (e.target.closest('.el-add')) { toggleLine(row, row.dataset.on !== '1'); updateTotal(); }
   else if (e.target.closest('.el-remove')) { toggleLine(row, false); updateTotal(); }
   else if (e.target.closest('.q-btn')) { const q = row.querySelector('.el-qty'); q.value = Math.max(1, Math.min(100, (Number(q.value) || 1) + Number(e.target.closest('.q-btn').dataset.q))); updateTotal(); }
   else if (e.target.closest('.el-photo')) { const el = elById(row.dataset.id); openPhotos({ photo: el.photo, photos: [], name: el.name, name_ht: el.name_ht }); }
 });
-$('#elementList').addEventListener('change', updateTotal);
-$('#elementList').addEventListener('input', updateTotal);
+$(box).addEventListener('change', updateTotal);
+$(box).addEventListener('input', updateTotal);
+}
 
 function renderOptions() {
   const p = currentPackage(), checked = selectedOptions().map(x => x.id);
@@ -283,7 +289,7 @@ function renderOptions() {
 function orderTotal() {
   if (isCustom()) return customLines().reduce((a, l) => a + l.quantity * lineUnit(elById(l.id), l.choices), 0) + addonTotal();
   const p = currentPackage(); if (!p) return null;
-  return (p.price_htg + selectedOptions().reduce((a, x) => a + x.price, 0)) * Math.max(1, Number($('#orderForm [name=quantity]').value) || 1) + addonTotal();
+  return (p.price_htg + selectedOptions().reduce((a, x) => a + x.price, 0)) * Math.max(1, Number($('#orderForm [name=quantity]').value) || 1) + serviceTotal() + addonTotal();
 }
 /* Articles de la boutique ajoutés à la surprise */
 state.addons = {};
@@ -305,8 +311,8 @@ $('#addonList').addEventListener('click', e => {
 const choicesText = (el, choices) => (el.groups || []).flatMap(g => [].concat(choices[g.id] || []).map(oid => optName(g.options.find(o => o.id === oid) || {}))).filter(Boolean).join(', ');
 function updateTotal() {
   const v = orderTotal(); $('#orderTotal').textContent = v === null ? '—' : money(v); depositText('#orderDeposit', v);
-  if (!isCustom()) return;
   for (const r of $$('.element-row[data-on="1"]')) { const el = elById(r.dataset.id), q = Math.max(1, Number(r.querySelector('.el-qty').value) || 1); r.querySelector('.line-total').textContent = `${t('Sous-total')} : ${money(lineUnit(el, lineChoices(r)) * q)}`; }
+  if (!isCustom()) return;
   const lines = customLines();
   $('#customSummary').innerHTML = `<strong>${t('Votre surprise')}</strong>` + (lines.length ? `<ul class="sum-lines">${lines.map(l => { const el = elById(l.id), c = choicesText(el, l.choices); return `<li><span>${escapeHTML(tr(el, 'name'))}${c ? ` <small>(${escapeHTML(c)})</small>` : ''} × ${l.quantity}</span><b>${money(lineUnit(el, l.choices) * l.quantity)}</b></li>`; }).join('')}</ul>` : `<p>${t('Aucun élément choisi pour le moment.')}</p>`);
 }
@@ -318,8 +324,8 @@ for (const id of ['#recipientInput', '#messageInput', '#signInput']) $(id).addEv
 $$('.custom-start, nav a[href="#commander"]').forEach(a => a.addEventListener('click', () => { setBuildMode('custom'); goStep(1); }));
 
 function validateStep(n) {
-  if (n === 1 && isCustom()) {
-    const lines = customLines(); if (!lines.length && !addonLines().length) { goStep(1); toast('Ajoutez au moins un élément pour composer votre surprise.'); return false; }
+  if (n === 1) {
+    const lines = isCustom() ? customLines() : serviceLines(); if (isCustom() && !lines.length && !addonLines().length) { goStep(1); toast('Ajoutez au moins un élément pour composer votre surprise.'); return false; }
     for (const l of lines) { const el = elById(l.id); for (const g of el.groups || []) if (g.required && ![].concat(l.choices[g.id] || []).length) { goStep(1); toast(t('Faites un choix pour « {g} »', { g: `${tr(g, 'name')} — ${tr(el, 'name')}` })); return false; } }
   }
   if (n === 1 && !isCustom() && !currentPackage()) { goStep(1); toast('Choisissez une surprise.'); return false; }
@@ -344,7 +350,7 @@ function goStep(n) {
 }
 function renderSummary() {
   const f = new FormData($('#orderForm')), p = currentPackage();
-  const items = p ? [tr(p, 'name'), ...selectedOptions().map(x => '+ ' + x.name)] : customLines().map(l => { const el = elById(l.id), c = choicesText(el, l.choices); return `${tr(el, 'name')}${c ? ' (' + c + ')' : ''} × ${l.quantity}`; });
+  const items = p ? [tr(p, 'name'), ...selectedOptions().map(x => '+ ' + x.name), ...serviceLines().map(l => { const el = elById(l.id), c = choicesText(el, l.choices); return `🎶 ${tr(el, 'name')}${c ? ' (' + c + ')' : ''} × ${l.quantity}`; })] : customLines().map(l => { const el = elById(l.id), c = choicesText(el, l.choices); return `${tr(el, 'name')}${c ? ' (' + c + ')' : ''} × ${l.quantity}`; });
   items.push(...addonLines().map(l => `🛍️ ${prodName(l.x)} × ${l.q}`));
   $('#orderSummary').innerHTML = `<strong>${t('Récapitulatif')}</strong><p>${items.map(escapeHTML).join('<br>')}</p><p>${t('Pour')} <b>${escapeHTML(f.get('recipient'))}</b> · ${escapeHTML(f.get('city'))} (${escapeHTML(f.get('department'))})<br>${f.get('event_at') ? escapeHTML(dateTime(f.get('event_at'))) : ''}</p>`;
 }
@@ -363,6 +369,7 @@ $('#orderForm').onsubmit = async e => {
     };
     body.music_id = f.get('music_id') || '';
     body.shop_items = addonLines().map(l => ({ id: l.x.id, quantity: l.q }));
+    if (!isCustom()) body.services = serviceLines();
     const o = await post('/api/orders', body), wantDeposit = f.has('pay_deposit') && !$('#orderDeposit').classList.contains('hidden');
     for (const k of ['recipient', 'recipient_phone', 'alternate_phone', 'message', 'sender', 'landmark', 'address', 'event_at', 'colors', 'theme', 'cake', 'music', 'music_id', 'notes']) e.target.elements[k].value = '';
     $('#musicChosen').innerHTML = ''; state.addons = {}; renderAddons(); loadShop();

@@ -141,7 +141,6 @@
         <div class="mode-switch" role="group"><button type="button" data-mode="custom" class="active">✨ Je compose tout moi-même</button><button type="button" data-mode="ready">🎁 Je pars d’une surprise prête</button></div>
         <div id="elementBuilder">
           <p class="hint">Composez librement : choisissez les éléments, puis leurs options. Le prix se met à jour à chaque choix.</p>
-          <div id="dimTabs" class="dim-tabs" data-dyn></div>
           <div id="elementList" data-dyn></div>
           <div id="customSummary" class="summary" data-dyn></div>
         </div>
@@ -152,6 +151,7 @@
           <label id="quantityLabel">Nombre de surprises identiques<input name="quantity" type="number" value="1" min="1" max="100" required></label>
         </div>
         <div id="shopAddon" class="shop-addon hidden"><h3 class="form-h">🛍️ Ajoutez des cadeaux de la boutique</h3><p class="hint">Fleurs, peluches, chocolats… livrés avec votre surprise.</p><div id="addonList" class="addon-list" data-dyn></div></div>
+        <div id="servicesBox" class="shop-addon services-box hidden"><h3 class="form-h">🎶 Services inclus <small>(facultatif)</small></h3><p class="hint">Livraison, animation musicale, décoration… ajoutez-les seulement si vous le souhaitez.</p><div id="serviceList" class="element-list" data-dyn></div></div>
       </fieldset>
 
       <fieldset class="step hidden" data-step="2">

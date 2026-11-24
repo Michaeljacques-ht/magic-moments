@@ -226,3 +226,8 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 ## Version 23 — Une page à la fois
 - Chaque entrée du menu (ordinateur, menu mobile, raccourcis du bas, boutons et liens internes) affiche **uniquement sa page** : Accueil, Cadeau express, Boutique, Nos surprises, Créer une surprise, Location, Réalisations, Contact, Suivre ma commande. Le site ne défile plus d’une section à l’autre ; chaque page s’ouvre en haut.
 - La page ouverte est mise en évidence dans le menu ; les boutons Précédent/Suivant du navigateur et les liens reçus (paiement, suivi) fonctionnent.
+
+## Version 24 — Services inclus
+- « Créer une surprise » : les onglets Tout / Pâtisserie / Cadeaux / Fleurs / Services / Décoration sont retirés ; les éléments s’affichent à la suite par catégorie.
+- Nouvelle section facultative **🎶 Services inclus**, juste après « Ajoutez des cadeaux de la boutique », pour les deux façons de commander (composition libre ou surprise prête) : livraison, animation musicale, décoration… avec options, quantité, prix ajouté au total et au récapitulatif.
+- Les éléments des catégories Services et Décoration y sont placés automatiquement ; l’élément « Transport » devient « Livraison ». Une case « Service inclus » dans la fiche d’un élément (Catalogue → Éléments) permet de choisir ce qui apparaît dans cette section.

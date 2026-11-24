@@ -237,6 +237,7 @@ export const HT = {
   'Emballage cadeau (+{m})': 'Anbalaj kado (+{m})', 'Emballage cadeau': 'Anbalaj kado', 'Articles': 'Atik', '💌 Vos coordonnées': '💌 Enfòmasyon ou', 'Complétez les champs obligatoires.': 'Ranpli chan obligatwa yo.',
   'Aucun compte nécessaire. Paiement de la totalité à la commande ; référence, reçu et suivi par courriel.': 'Ou pa bezwen kont. Ou peye tout lajan an lè w kòmande ; referans, resi ak swivi pa imèl.',
   'Commande enregistrée — référence {r}. Réglez-la maintenant pour que nous la préparions.': 'Kòmand lan anrejistre — referans {r}. Peye l kounye a pou nou ka prepare l.',
+  '🎶 Services inclus': '🎶 Sèvis ki enkli', '(facultatif)': '(si w vle)', 'Livraison, animation musicale, décoration… ajoutez-les seulement si vous le souhaitez.': 'Livrezon, animasyon mizikal, dekorasyon… ajoute yo sèlman si w vle.',
   'Bonjour {n}': 'Bonjou {n}', 'Espace employé': 'Espas anplwaye', '👤 Se connecter': '👤 Konekte',
   '🛍️ Ajoutez des cadeaux de la boutique': '🛍️ Ajoute kado nan boutik la', 'Fleurs, peluches, chocolats… livrés avec votre surprise.': 'Flè, toutou, chokola… n ap livre yo ansanm ak sipriz ou a.',
   'Fleurs': 'Flè', 'Peluches': 'Toutou', 'Chocolats et douceurs': 'Chokola ak dous', 'Paniers gourmands': 'Panye manje', 'Bijoux et accessoires': 'Bijou ak akseswa', 'Parfums et beauté': 'Pafen ak bote', 'Cartes et ballons': 'Kat ak balon', 'Personnalisés': 'Pèsonalize'
