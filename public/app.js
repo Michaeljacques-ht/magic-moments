@@ -253,7 +253,7 @@ function renderElements(keep = []) {
   // Les catégories du composeur sont affichées à la suite (plus d'onglets) ; les services vont dans « Services inclus ».
   const main = state.elements.filter(e => !isService(e)), dims = [...new Set(main.map(e => e.category))];
   const dimLabel = d => { const e = state.elements.find(x => x.category === d); return (lang === 'ht' && e?.category_ht) || d; };
-  $('#elementList').innerHTML = dims.map(d => `<section class="dim-block" data-dim="${escapeHTML(d)}"><h4>${escapeHTML(dimLabel(d))}</h4>${main.filter(e => e.category === d).map(elementRow).join('')}</section>`).join('') || `<p class="empty">${t('Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.')}</p>`;
+  $('#elementList').innerHTML = ''; void dims.map(d => `<section class="dim-block" data-dim="${escapeHTML(d)}"><h4>${escapeHTML(dimLabel(d))}</h4>${main.filter(e => e.category === d).map(elementRow).join('')}</section>`).join('') || `<p class="empty">${t('Les éléments seront bientôt disponibles. Choisissez une surprise prête ou écrivez-nous.')}</p>`;
   const svc = state.elements.filter(isService);
   $('#servicesBox').classList.toggle('hidden', !svc.length);
   $('#serviceList').innerHTML = svc.map(elementRow).join('');
@@ -325,7 +325,7 @@ $$('.custom-start, nav a[href="#commander"]').forEach(a => a.addEventListener('c
 
 function validateStep(n) {
   if (n === 1) {
-    const lines = isCustom() ? customLines() : serviceLines(); if (isCustom() && !lines.length && !addonLines().length) { goStep(1); toast('Ajoutez au moins un élément pour composer votre surprise.'); return false; }
+    const lines = isCustom() ? customLines() : serviceLines(); if (isCustom() && !lines.length && !addonLines().length) { goStep(1); toast('Ajoutez au moins un cadeau de la boutique ou un service pour composer votre surprise.'); return false; }
     for (const l of lines) { const el = elById(l.id); for (const g of el.groups || []) if (g.required && ![].concat(l.choices[g.id] || []).length) { goStep(1); toast(t('Faites un choix pour « {g} »', { g: `${tr(g, 'name')} — ${tr(el, 'name')}` })); return false; } }
   }
   if (n === 1 && !isCustom() && !currentPackage()) { goStep(1); toast('Choisissez une surprise.'); return false; }
@@ -653,7 +653,7 @@ function goAccount() { if (state.user?.role === 'admin') { location.href = '/adm
 document.addEventListener('click', e => { const a = e.target.closest('[data-account]'); if (!a) return; e.preventDefault(); openDrawer(false); goAccount(); });
 /* ---------- Navigation par pages ----------
    Chaque entrée du menu affiche uniquement sa page (pas tout le site qui défile). */
-const PAGES = { accueil: ['accueil', 'diaspora', 'avis'], express: ['express'], boutique: ['boutique'], catalogue: ['catalogue'], commander: ['commander'], location: ['location'], gallery: ['gallery'], avis: ['avis'], contact: ['contact'], espace: ['espace'], live: ['espace'] };
+const PAGES = { accueil: ['accueil', 'express', 'diaspora', 'avis'], express: ['express'], boutique: ['boutique'], catalogue: ['catalogue'], commander: ['commander'], location: ['location'], gallery: ['gallery'], avis: ['avis'], contact: ['contact'], espace: ['espace'], live: ['espace'] };
 const PAGE_SECTIONS = [...new Set(Object.values(PAGES).flat())];
 function showPage(id, anchor) {
   if (!PAGES[id]) id = 'accueil';

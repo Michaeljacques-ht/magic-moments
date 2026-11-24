@@ -231,3 +231,7 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 - « Créer une surprise » : les onglets Tout / Pâtisserie / Cadeaux / Fleurs / Services / Décoration sont retirés ; les éléments s’affichent à la suite par catégorie.
 - Nouvelle section facultative **🎶 Services inclus**, juste après « Ajoutez des cadeaux de la boutique », pour les deux façons de commander (composition libre ou surprise prête) : livraison, animation musicale, décoration… avec options, quantité, prix ajouté au total et au récapitulatif.
 - Les éléments des catégories Services et Décoration y sont placés automatiquement ; l’élément « Transport » devient « Livraison ». Une case « Service inclus » dans la fiche d’un élément (Catalogue → Éléments) permet de choisir ce qui apparaît dans cette section.
+
+### V24.1
+- « Je compose tout moi-même » : la liste d’éléments (Gâteau, Bouquet d’argent, Peluche…) et le bloc « Votre surprise » sont retirés ; la composition se fait avec les **cadeaux de la boutique** et les **Services inclus**. Une surprise composée peut contenir uniquement des articles de la boutique.
+- V24.2 : la section **⚡ Cadeau express** s’affiche aussi sur la page d’accueil (sous la présentation), en plus de sa propre page.
