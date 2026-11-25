@@ -7,7 +7,7 @@ const state = { user: null, packages: [], equipment: [], elements: [], gallery: 
 
 /* ---------- Langue ---------- */
 let lang = 'fr';
-try { lang = localStorage.getItem('mm_lang') === 'ht' ? 'ht' : 'fr'; } catch {}
+try { lang = new URLSearchParams(location.search).get('lang') === 'ht' || localStorage.getItem('mm_lang') === 'ht' ? 'ht' : 'fr'; } catch {}
 /** Traduit un texte français de l'interface ; {x} est remplacé par vars.x. */
 const t = (fr, vars = {}) => Object.entries(vars).reduce((s, [k, v]) => s.replaceAll('{' + k + '}', v), (lang === 'ht' && HT[fr]) || fr);
 /** Champ de données dans la langue active (name → name_ht), avec repli sur le français. */
@@ -175,7 +175,7 @@ $('.lb-prev').onclick = () => movePhoto(-1); $('.lb-next').onclick = () => moveP
 $('.lb-close').onclick = () => $('#lightbox').classList.add('hidden');
 $('#lightbox').onclick = e => { if (e.target.id === 'lightbox') $('#lightbox').classList.add('hidden'); };
 document.addEventListener('keydown', e => { if ($('#lightbox').classList.contains('hidden')) return; if (e.key === 'Escape') $('#lightbox').classList.add('hidden'); if (e.key === 'ArrowLeft') movePhoto(-1); if (e.key === 'ArrowRight') movePhoto(1); });
-document.addEventListener('click', e => { const b = e.target.closest('.open-photos, .card-image img, .detail-thumb'); if (!b) return; const id = b.dataset.pkg || b.closest('[data-pkg]')?.dataset.pkg; const p = state.packages.find(x => x.id === id); if (p) openPhotos(p, Number(b.dataset.i || 0)); });
+document.addEventListener('click', e => { if (e.target.closest('.share-btn')) return; const b = e.target.closest('.open-photos, .card-image img, .detail-thumb'); if (!b) return; const id = b.dataset.pkg || b.closest('[data-pkg]')?.dataset.pkg; const p = state.packages.find(x => x.id === id); if (p) openPhotos(p, Number(b.dataset.i || 0)); });
 const chips = p => `<div class="chips">${tr(p, 'guests') ? `<span>👥 ${escapeHTML(tr(p, 'guests'))}</span>` : ''}${tr(p, 'lead_time') ? `<span>⏱ ${escapeHTML(tr(p, 'lead_time'))}</span>` : ''}</div>`;
 function renderCategories() {
   const cats = state.categories, used = cats.filter(c => state.packages.some(p => p.category === c)), cur = $('#categoryFilter').value;
@@ -185,8 +185,8 @@ function renderCategories() {
 function renderCatalog() {
   $('#diaspora').classList.toggle('hidden', !state.packages.some(p => p.category === DIASPORA));
   const cat = $('#categoryFilter').value, list = state.packages.filter(p => !cat || p.category === cat);
-  $('#catalogueGrid').innerHTML = list.map(p => `<article class="card">
-    <div class="card-image" data-pkg="${escapeHTML(p.id)}">${packageVisual(p)}</div>
+  $('#catalogueGrid').innerHTML = list.map(p => `<article class="card" data-item="s:${escapeHTML(p.id)}">
+    <div class="card-image" data-pkg="${escapeHTML(p.id)}">${packageVisual(p)}<span class="share-btn" role="button" tabindex="0" data-share="s:${escapeHTML(p.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span></div>
     <div class="card-body"><small>${escapeHTML(catName(p.category))}</small><h3>${escapeHTML(tr(p, 'name'))}</h3><p>${escapeHTML(tr(p, 'description'))}</p>
       ${trList(p, 'includes').length ? `<ul class="includes">${trList(p, 'includes').slice(0, 5).map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
       ${chips(p)}
@@ -385,7 +385,7 @@ $('#orderForm').onsubmit = async e => {
 state.rentalLines = []; // [{ id, qty }]
 const eqById = id => state.equipment.find(x => x.id === id);
 function renderEquipment() {
-  $('#equipmentGrid').innerHTML = state.equipment.map(e => `<button type="button" class="equipment-item ${e.photo ? 'has-photo' : ''}" data-eq="${escapeHTML(e.id)}">${e.photo ? `<img class="eq-img" src="/media/${escapeHTML(e.photo)}" alt="" loading="lazy">` : ''}<h3>${e.photo ? '' : '✦ '}${escapeHTML(tr(e, 'name'))}</h3><p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Ajouter')} →</span></button>`).join('');
+  $('#equipmentGrid').innerHTML = state.equipment.map(e => `<button type="button" class="equipment-item ${e.photo ? 'has-photo' : ''}" data-eq="${escapeHTML(e.id)}" data-item="l:${escapeHTML(e.id)}">${e.photo ? `<img class="eq-img" src="/media/${escapeHTML(e.photo)}" alt="" loading="lazy">` : ''}<h3>${e.photo ? '' : '✦ '}${escapeHTML(tr(e, 'name'))}</h3><p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Ajouter')} →</span><span class="share-btn" role="button" tabindex="0" data-share="l:${escapeHTML(e.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span></button>`).join('');
   state.rentalLines = state.rentalLines.filter(l => eqById(l.id));
   if (!state.rentalLines.length && state.equipment.length) state.rentalLines.push({ id: state.equipment[0].id, qty: 1 });
   renderRentalLines();
@@ -418,7 +418,7 @@ $('#addRentalLine').onclick = () => { const free = state.equipment.find(e => !st
 $('#rentalForm').addEventListener('input', e => { if (e.target.name === 'start_at' || e.target.name === 'end_at') updateRentalTotal(); });
 $('#rentalOpen').onclick = () => { $('#rentalForm').classList.remove('collapsed'); $('#rentalOpen').classList.add('hidden'); };
 $('#equipmentGrid').addEventListener('click', e => {
-  const it = e.target.closest('[data-eq]'); if (!it) return; const id = it.dataset.eq, line = state.rentalLines.find(l => l.id === id);
+  if (e.target.closest('.share-btn')) return; const it = e.target.closest('[data-eq]'); if (!it) return; const id = it.dataset.eq, line = state.rentalLines.find(l => l.id === id);
   // Le premier clic remplace la ligne par défaut encore vierge ; les suivants ajoutent un matériel ou augmentent sa quantité.
   if (!state.rentalTouched && state.rentalLines.length <= 1) state.rentalLines = [{ id, qty: 1 }]; else if (line) line.qty += 1; else state.rentalLines.push({ id, qty: 1 });
   state.rentalTouched = true; renderRentalLines(); $('#rentalOpen').click(); toast(`${tr(eqById(id), 'name')} — ${t('Ajouté ✓')}`);
@@ -764,7 +764,7 @@ function renderExpress() {
   if (!show) return;
   $('#expressInfo').innerHTML = X.open ? t('Commandez avant {c} : livraison aujourd’hui à {v}. Frais express : {f}.', { c: X.cutoff, v: X.cities.slice(0, 5).join(', ') + (X.cities.length > 5 ? '…' : ''), f: money(X.fee) })
     : `<span class="closed">⏰ ${t(EXPRESS_CLOSED[X.reason] || 'Le cadeau express n’est pas disponible pour le moment.', { c: X.cutoff, s: X.start })}</span> <a href="#commander">${t('Planifier une surprise')} →</a>`;
-  $('#expressGrid').innerHTML = gifts.map(p => `<article class="express-card" data-pkg="${escapeHTML(p.id)}"><div class="card-image">${packageVisual(p)}</div><div class="express-body"><strong>${escapeHTML(tr(p, 'name'))}</strong><p>${escapeHTML((tr(p, 'description') || '').slice(0, 110))}</p>
+  $('#expressGrid').innerHTML = gifts.map(p => `<article class="express-card" data-pkg="${escapeHTML(p.id)}"><div class="card-image">${packageVisual(p)}<span class="share-btn" role="button" tabindex="0" data-share="s:${escapeHTML(p.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span></div><div class="express-body"><strong>${escapeHTML(tr(p, 'name'))}</strong><p>${escapeHTML((tr(p, 'description') || '').slice(0, 110))}</p>
     <div class="express-foot"><span><b>${money(p.price_htg + X.fee)}</b><small>${t('frais express inclus')}</small></span><button type="button" class="btn btn-gold express-go" data-id="${escapeHTML(p.id)}" ${X.open ? '' : 'disabled'}>⚡ ${t('Offrir aujourd’hui')}</button></div></div></article>`).join('');
 }
 $('#expressGrid').addEventListener('click', async e => {
@@ -799,7 +799,7 @@ state.shopCat = ''; state.cartMode = 'delivery';
 try { state.cart = JSON.parse(localStorage.getItem('mm_cart') || '[]').filter(x => x && x.id && x.q > 0); } catch { state.cart = []; }
 const saveCart = () => { try { localStorage.setItem('mm_cart', JSON.stringify(state.cart)); } catch {} };
 const prodName = x => (lang === 'ht' && x.name_ht) || x.name;
-async function loadShop() { try { state.shop = await api('/api/shop'); } catch { state.shop = null; } const ids = new Set((state.shop?.products || []).map(x => x.id)); state.cart = state.cart.filter(c => ids.has(c.id)); saveCart(); renderShop(); renderCart(); renderAddons(); updateTotal(); }
+async function loadShop() { try { state.shop = await api('/api/shop'); } catch { state.shop = null; } setTimeout(focusShared, 50); const ids = new Set((state.shop?.products || []).map(x => x.id)); state.cart = state.cart.filter(c => ids.has(c.id)); saveCart(); renderShop(); renderCart(); renderAddons(); updateTotal(); }
 function renderShop() {
   const S = state.shop, on = !!S?.settings.enabled && S.products.length > 0;
   $('#boutique').classList.toggle('hidden', !on); $$('a[href="#boutique"]').forEach(a => a.classList.toggle('hidden', !on)); if (!on) return;
@@ -807,7 +807,7 @@ function renderShop() {
   $('#shopCats').innerHTML = [{ name: '' }, ...S.categories.filter(c => used.has(c.name))].map(c => `<button type="button" class="chip ${c.name === state.shopCat ? 'on' : ''}" data-cat="${escapeHTML(c.name)}">${c.name ? (SHOP_ICON[c.name] || '🎁') + ' ' + escapeHTML((lang === 'ht' && c.name_ht) || c.name) : t('Toutes')}</button>`).join('');
   const list = S.products.filter(x => (!state.shopCat || x.category === state.shopCat) && (!q || (x.name + ' ' + x.name_ht + ' ' + x.description).toLowerCase().includes(q)));
   $('#shopGrid').innerHTML = list.map(x => { const inCart = state.cart.find(c => c.id === x.id)?.q || 0;
-    return `<article class="shop-card"><div class="shop-img">${x.photo ? `<img src="/media/${escapeHTML(x.photo)}" alt="${escapeHTML(prodName(x))}" loading="lazy">` : `<span>${SHOP_ICON[x.category] || '🎁'}</span>`}${x.featured ? `<b class="shop-star">⭐ ${t('Coup de cœur')}</b>` : ''}${x.stock > 0 && x.stock <= 3 ? `<b class="shop-low">${t('Plus que {n}', { n: x.stock })}</b>` : ''}</div>
+    return `<article class="shop-card" data-item="b:${escapeHTML(x.id)}"><div class="shop-img"><span class="share-btn" role="button" tabindex="0" data-share="b:${escapeHTML(x.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span>${x.photo ? `<img src="/media/${escapeHTML(x.photo)}" alt="${escapeHTML(prodName(x))}" loading="lazy">` : `<span>${SHOP_ICON[x.category] || '🎁'}</span>`}${x.featured ? `<b class="shop-star">⭐ ${t('Coup de cœur')}</b>` : ''}${x.stock > 0 && x.stock <= 3 ? `<b class="shop-low">${t('Plus que {n}', { n: x.stock })}</b>` : ''}</div>
       <div class="shop-body"><strong>${escapeHTML(prodName(x))}</strong><p>${escapeHTML((lang === 'ht' && x.description_ht) || x.description || '')}</p>
       <div class="shop-foot"><b>${money(x.price_htg)}</b>${!x.stock ? `<span class="pill-out">${t('Épuisé')}</span>` : inCart ? `<span class="qty" data-id="${x.id}"><button type="button" data-d="-1">−</button><em>${inCart}</em><button type="button" data-d="1" ${inCart >= x.stock ? 'disabled' : ''}>+</button></span>` : `<button type="button" class="btn btn-gold add-cart" data-id="${x.id}">＋ ${t('Ajouter')}</button>`}</div></div></article>`; }).join('') || `<p class="empty">${t('Aucun cadeau ne correspond à votre recherche.')}</p>`;
 }
@@ -859,6 +859,41 @@ $('#cartForm').onsubmit = async e => {
   } catch (err) { toast(err.message); loadShop(); } finally { btn.disabled = false; }
 };
 
+/* ---------- Partage sur les réseaux sociaux ----------
+   Le lien /p/<type>/<id> affiche aux réseaux la photo, le nom, la description et le prix. */
+function shareInfo(key) {
+  const [k, id] = key.split(':'), ht = lang === 'ht';
+  const x = k === 'b' ? (state.shop?.products || []).find(p => p.id === id) : k === 'l' ? state.equipment.find(e => e.id === id) : state.packages.find(p => p.id === id);
+  if (!x) return null;
+  const name = tr(x, 'name'), price = k === 'l' ? money(x.daily_price_htg) + ' ' + t('/ jour') : (k === 's' ? t('À partir de') + ' ' : '') + money(x.price_htg);
+  const photo = k === 's' ? (x.photo || (x.photos || [])[0]) : x.photo;
+  return { url: `${location.origin}/p/${k}/${id}${ht ? '?lang=ht' : ''}`, title: name, price, text: `${name} — ${price}${tr(x, 'description') ? '\n' + tr(x, 'description') : ''}`, photo, icon: k === 'b' ? (SHOP_ICON[x.category] || '🎁') : k === 'l' ? '🪑' : '🎁' };
+}
+function openShare(key) {
+  const s = shareInfo(key); if (!s) return; state.sharing = s;
+  const u = encodeURIComponent(s.url), tx = encodeURIComponent(s.text + '\n'), line = encodeURIComponent(`${s.title} — ${s.price}`);
+  const nets = [['WhatsApp', '#25d366', `https://wa.me/?text=${tx}${u}`], ['Facebook', '#1877f2', `https://www.facebook.com/sharer/sharer.php?u=${u}`], ['Messenger', '#0084ff', `fb-messenger://share/?link=${u}`], ['X', '#111', `https://twitter.com/intent/tweet?text=${line}&url=${u}`],
+    ['Telegram', '#229ed9', `https://t.me/share/url?url=${u}&text=${line}`], ['LinkedIn', '#0a66c2', `https://www.linkedin.com/sharing/share-offsite/?url=${u}`], [t('Courriel'), '#6a1d86', `mailto:?subject=${encodeURIComponent(s.title + ' — Magic Moments')}&body=${tx}${u}`]];
+  $('#shareBody').innerHTML = `<div class="share-prev">${s.photo ? `<img src="/media/${escapeHTML(s.photo)}" alt="">` : `<span>${s.icon}</span>`}<div><b>${escapeHTML(s.title)}</b><small>${escapeHTML(s.price)}</small><small class="muted">${escapeHTML(location.host)}</small></div></div>
+    <div class="share-nets">${nets.filter(n => n[0] !== 'Messenger' || /Android|iPhone|iPad/i.test(navigator.userAgent)).map(([n, c, href]) => `<a class="share-net" style="--c:${c}" href="${escapeHTML(href)}" target="_blank" rel="noopener">${escapeHTML(n)}</a>`).join('')}</div>
+    <div class="share-copy"><input readonly value="${escapeHTML(s.url)}" aria-label="${t('Lien')}"><button type="button" class="btn btn-purple" id="shareCopy">${t('Copier le lien')}</button></div>
+    ${navigator.share ? `<button type="button" class="btn btn-outline-dark full" id="shareNative">📲 ${t('Autres applications (Instagram, SMS…)')}</button>` : ''}`;
+  $('#shareModal').classList.remove('hidden');
+  $('#shareCopy').onclick = async () => { try { await navigator.clipboard.writeText(s.url); } catch { $('#shareBody input').select(); document.execCommand('copy'); } toast(t('Lien copié !')); };
+  $('#shareNative') && ($('#shareNative').onclick = () => navigator.share({ title: s.title + ' — Magic Moments', text: s.text, url: s.url }).catch(() => {}));
+}
+document.addEventListener('click', e => { const b = e.target.closest('.share-btn'); if (!b) return; e.preventDefault(); e.stopPropagation(); openShare(b.dataset.share); }, true);
+document.addEventListener('keydown', e => { const b = e.target.closest?.('.share-btn'); if (b && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openShare(b.dataset.share); } });
+$('#closeShare').onclick = () => $('#shareModal').classList.add('hidden');
+$('#shareModal').onclick = e => { if (e.target.id === 'shareModal') $('#shareModal').classList.add('hidden'); };
+// Arrivée depuis un lien partagé : ?voir=<type>:<id> met la fiche en avant.
+function focusShared() {
+  const q = new URLSearchParams(location.search), v = q.get('voir'); if (!v || !/^[sbl]:[\w-]+$/.test(v)) return;
+  const el = document.querySelector(`[data-item="${v}"]`); if (!el) return;
+  q.delete('voir'); q.delete('lang'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  setTimeout(() => { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); }, 300);
+}
+
 /* ---------- Playlist : musiques importées de YouTube par l'équipe ---------- */
 state.musicCat = '';
 function renderMusic() {
@@ -892,7 +927,7 @@ async function init() {
     Object.assign(state, { packages, equipment, elements, gallery, settings, testimonials, announcements, music }); $('#musicPick').classList.toggle('hidden', !music.length); depositText('#orderDeposit', orderTotal()); depositText('#rentalDeposit', null); renderTicker(); await loadCategories();
     renderElements(); renderCategories(); renderCatalog(); setBuildMode('custom'); renderEquipment(); renderGallery(); renderContact(); cardDefaults(); setMode('login'); goStep(1);
     try { state.user = (await api('/api/me')).user; } catch {}
-    renderAuth(); refreshOrders(); loadExpress(); setInterval(loadExpress, 300000); loadShop(); checkHashLinks();
+    renderAuth(); refreshOrders(); loadExpress(); setInterval(loadExpress, 300000); loadShop(); checkHashLinks(); focusShared();
     if (!getCookie('mm_consent')) showCookieBanner(true); else recordVisit();
     if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token, p.kind || 'order'); } catch {} }
   } catch (err) { toast(t('Impossible de charger les données : ') + t(err.message)); }

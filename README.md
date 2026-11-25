@@ -235,3 +235,11 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 ### V24.1
 - « Je compose tout moi-même » : la liste d’éléments (Gâteau, Bouquet d’argent, Peluche…) et le bloc « Votre surprise » sont retirés ; la composition se fait avec les **cadeaux de la boutique** et les **Services inclus**. Une surprise composée peut contenir uniquement des articles de la boutique.
 - V24.2 : la section **⚡ Cadeau express** s’affiche aussi sur la page d’accueil (sous la présentation), en plus de sa propre page.
+
+## Version 25 — Partage sur les réseaux sociaux
+
+- Bouton **↗ Partager** sur chaque carte : surprises (Nos surprises et Cadeau express), articles de la boutique et matériel de location.
+- Fenêtre de partage : aperçu (photo, nom, prix), **WhatsApp, Facebook, Messenger (téléphone), X, Telegram, LinkedIn, courriel**, copie du lien et, sur téléphone, « Autres applications » (Instagram, SMS… via le partage du téléphone).
+- Chaque partage utilise un lien dédié (`/p/s/…`, `/p/b/…`, `/p/l/…`) avec balises **Open Graph / Twitter** : les réseaux affichent la **photo** de l’article (ou le logo s’il n’a pas de photo), le **nom**, la **description**, ce qui est **inclus** et le **prix** ; en kreyòl si le site est en kreyòl.
+- La personne qui clique arrive sur la bonne page du site, la fiche partagée mise en avant.
+- Important : `PUBLIC_URL` doit contenir l’adresse publique du site (Render → Environment) pour que les photos s’affichent dans les aperçus.
