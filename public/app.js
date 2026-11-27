@@ -384,8 +384,10 @@ $('#orderForm').onsubmit = async e => {
 /* ---------- Location : plusieurs matériels par demande ---------- */
 state.rentalLines = []; // [{ id, qty }]
 const eqById = id => state.equipment.find(x => x.id === id);
+// Pictogramme de secours quand le matériel n'a pas encore de vignette.
+const eqIcon = e => { const n = (e.name || '').toLowerCase(); return /chaise/.test(n) ? '🪑' : /table/.test(n) ? '🍽️' : /son|micro|enceinte|haut-parleur/.test(n) ? '🔊' : /tente|chapiteau/.test(n) ? '⛺' : /lumi|éclairage|projecteur/.test(n) ? '💡' : /nappe|tissu|housse/.test(n) ? '🧵' : '📦'; };
 function renderEquipment() {
-  $('#equipmentGrid').innerHTML = state.equipment.map(e => `<button type="button" class="equipment-item ${e.photo ? 'has-photo' : ''}" data-eq="${escapeHTML(e.id)}" data-item="l:${escapeHTML(e.id)}">${e.photo ? `<img class="eq-img" src="/media/${escapeHTML(e.photo)}" alt="" loading="lazy">` : ''}<h3>${e.photo ? '' : '✦ '}${escapeHTML(tr(e, 'name'))}</h3><p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Ajouter')} →</span><span class="share-btn" role="button" tabindex="0" data-share="l:${escapeHTML(e.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span></button>`).join('');
+  $('#equipmentGrid').innerHTML = state.equipment.map(e => { const ph = packagePhotos(e); return `<button type="button" class="equipment-item has-photo" data-eq="${escapeHTML(e.id)}" data-item="l:${escapeHTML(e.id)}"><span class="eq-visual">${ph.length ? `<img class="eq-img" src="/media/${escapeHTML(ph[0])}" alt="${escapeHTML(tr(e, 'name'))}" loading="lazy">${ph.length > 1 ? `<span class="photo-count eq-photos" role="button" tabindex="0">📷 ${ph.length}</span>` : ''}` : `<span class="eq-emoji">${eqIcon(e)}</span>`}</span><h3>${escapeHTML(tr(e, 'name'))}</h3>${tr(e, 'description') ? `<p class="eq-desc">${escapeHTML(tr(e, 'description'))}</p>` : ''}<p>${money(e.daily_price_htg)} ${t('/ jour')}</p><p>${t('Disponibles :')} ${Number(e.stock)}</p><span class="eq-cta">${t('Ajouter')} →</span><span class="share-btn" role="button" tabindex="0" data-share="l:${escapeHTML(e.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span></button>`; }).join('');
   state.rentalLines = state.rentalLines.filter(l => eqById(l.id));
   if (!state.rentalLines.length && state.equipment.length) state.rentalLines.push({ id: state.equipment[0].id, qty: 1 });
   renderRentalLines();
@@ -418,7 +420,9 @@ $('#addRentalLine').onclick = () => { const free = state.equipment.find(e => !st
 $('#rentalForm').addEventListener('input', e => { if (e.target.name === 'start_at' || e.target.name === 'end_at') updateRentalTotal(); });
 $('#rentalOpen').onclick = () => { $('#rentalForm').classList.remove('collapsed'); $('#rentalOpen').classList.add('hidden'); };
 $('#equipmentGrid').addEventListener('click', e => {
-  if (e.target.closest('.share-btn')) return; const it = e.target.closest('[data-eq]'); if (!it) return; const id = it.dataset.eq, line = state.rentalLines.find(l => l.id === id);
+  if (e.target.closest('.share-btn')) return; const it = e.target.closest('[data-eq]'); if (!it) return; const id = it.dataset.eq;
+  if (e.target.closest('.eq-img, .eq-photos')) { openPhotos(eqById(id)); return; }
+  const line = state.rentalLines.find(l => l.id === id);
   // Le premier clic remplace la ligne par défaut encore vierge ; les suivants ajoutent un matériel ou augmentent sa quantité.
   if (!state.rentalTouched && state.rentalLines.length <= 1) state.rentalLines = [{ id, qty: 1 }]; else if (line) line.qty += 1; else state.rentalLines.push({ id, qty: 1 });
   state.rentalTouched = true; renderRentalLines(); $('#rentalOpen').click(); toast(`${tr(eqById(id), 'name')} — ${t('Ajouté ✓')}`);

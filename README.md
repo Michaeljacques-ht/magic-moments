@@ -258,4 +258,6 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 - « FAQ » est retiré du menu : les **questions fréquentes** s’affichent dans la page **Contact** (recherche, réponses dépliables, français/kreyòl), avec un lien vers la page FAQ complète. Le lien `#faq` ouvre directement cette partie.
 - Réponse FAQ « Dois-je créer un compte ? » mise à jour (plus aucun compte nécessaire).
 - V27.1 : le bouton de connexion affiche « Se connecter » en toutes lettres (ordinateur et téléphone).
-- V27.2 : envoyer.bat corrige seul une adresse GitHub invalide (guillemets, espaces, « compte/dépôt » sans https, caractères parasites) et utilise par défaut https://github.com/Michaeljacques-ht/magic-moments.git ; il suffit d’appuyer sur Entrée lors du premier envoi.
+- V27.4 : vignette, photos supplémentaires et description pour chaque matériel de location (pictogramme si aucune photo).
+V27.3 : suppression du bouton « Créer une surprise » en double dans Nos surprises.
+V27.2 : envoyer.bat corrige seul une adresse GitHub invalide (guillemets, espaces, « compte/dépôt » sans https, caractères parasites) et utilise par défaut https://github.com/Michaeljacques-ht/magic-moments.git ; il suffit d’appuyer sur Entrée lors du premier envoi.

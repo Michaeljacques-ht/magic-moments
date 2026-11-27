@@ -530,3 +530,12 @@ h2{font-size:clamp(25px,2.8vw,36px)}
 .nav-actions .login-btn span{display:inline!important}.nav-actions .login-btn i{font-size:15px!important}
 @media(max-width:1180px){.nav-actions .login-btn{padding:9px 12px!important;font-size:13px}.nav-actions .lang-toggle{padding:9px 11px;font-size:13px}}
 @media(max-width:420px){.nav-actions{gap:5px}.nav-actions .login-btn{padding:8px 9px!important;font-size:12px}.nav-actions .login-btn i{display:none}.nav-actions .lang-toggle{padding:8px 9px;font-size:12px}.brand img{max-height:40px}}
+
+/* V27.4 — vignettes de la location */
+.equipment-item.has-photo{padding-top:0;overflow:hidden}
+.eq-visual{position:relative;display:flex;align-items:center;justify-content:center;margin:0 -22px 12px;height:160px;background:linear-gradient(135deg,#f6eefa,#efe1f5)}
+.eq-visual .eq-img{width:100%;height:100%;margin:0;object-fit:cover;cursor:zoom-in}
+.eq-emoji{font-size:56px;filter:drop-shadow(0 6px 10px #43005d22)}
+.eq-visual .photo-count{position:absolute;left:10px;bottom:10px}
+.eq-desc{color:var(--muted);font-size:.9em;margin:2px 0 6px}
+.equipment-item{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start}

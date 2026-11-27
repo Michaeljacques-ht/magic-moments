@@ -34,7 +34,7 @@ function item(db, type, id, ht) {
   }
   if (type === 'l') {
     const x = db.equipment.find(e => e.id === id && e.active !== false); if (!x) return null;
-    return { title: pick(x, 'name'), price: money(x.daily_price_htg) + (ht ? ' / jou' : ' / jour'), amount: x.daily_price_htg, desc: pick(x, 'description') || (ht ? 'Lokasyon materyèl pou evènman ou an Ayiti, livrezon ak enstalasyon.' : 'Location de matériel pour vos événements en Haïti, livraison et installation.'), photo: x.photo || '', target: '#location', label: ht ? 'Lokasyon' : 'Location' };
+    return { title: pick(x, 'name'), price: money(x.daily_price_htg) + (ht ? ' / jou' : ' / jour'), amount: x.daily_price_htg, desc: pick(x, 'description') || (ht ? 'Lokasyon materyèl pou evènman ou an Ayiti, livrezon ak enstalasyon.' : 'Location de matériel pour vos événements en Haïti, livraison et installation.'), photo: x.photo || x.photos?.[0] || '', target: '#location', label: ht ? 'Lokasyon' : 'Location' };
   }
   return null;
 }
