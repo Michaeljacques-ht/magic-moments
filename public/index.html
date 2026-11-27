@@ -21,12 +21,11 @@
       <a href="#accueil">Accueil</a>
       <a href="#express" class="nav-express">⚡ Cadeau express</a>
       <a href="#boutique">Boutique</a>
+      <a href="#decoration">Décoration</a>
       <a href="#catalogue">Nos surprises</a>
-      <a href="#commander">Créer une surprise</a>
       <a href="#location">Location</a>
       <a href="#gallery">Réalisations</a>
       <a href="#contact">Contact</a>
-      <a href="/faq">FAQ</a>
     </nav>
     <div class="nav-actions">
       <button type="button" id="langToggle" class="btn btn-outline lang-toggle" aria-label="Changer de langue">Kreyòl</button>
@@ -49,13 +48,12 @@
       <a href="#accueil"><i>🏠</i>Accueil</a>
       <a href="#express"><i>⚡</i>Cadeau express (aujourd’hui)</a>
       <a href="#boutique"><i>🛍️</i>Boutique de cadeaux</a>
+      <a href="#decoration"><i>🎈</i>Décoration événement</a>
       <a href="#catalogue"><i>🎁</i>Nos surprises</a>
-      <a href="#commander"><i>✨</i>Créer une surprise</a>
       <a href="#location"><i>🪑</i>Location</a>
       <a href="#gallery"><i>📸</i>Réalisations</a>
       <a href="#avis" id="drawerAvis" class="hidden"><i>💬</i>Avis clients</a>
-      <a href="#contact"><i>📞</i>Contact</a>
-      <a href="/faq"><i>❓</i>Questions fréquentes (FAQ)</a>
+      <a href="#contact"><i>📞</i>Contact et questions fréquentes</a>
       <a href="#" data-open="careers"><i>💼</i>Carrières</a>
       <a href="#espace" data-account><i>🔎</i>Suivre ma commande et Magic Live</a>
     </nav>
@@ -103,6 +101,12 @@
   <div class="shop-tools"><input id="shopSearch" type="search" placeholder="Rechercher un cadeau" maxlength="80"><div id="shopCats" class="chips" data-dyn></div></div>
   <div id="shopGrid" class="shop-grid" data-dyn></div>
 </section>
+<section id="decoration" class="section wrap hidden">
+  <div class="section-top"><div><div class="eyebrow dark">🎈 DÉCORATION ÉVÉNEMENT</div><h2>Une décoration à la hauteur de votre événement</h2><p>Anniversaire, mariage, baby shower, baptême, graduation, fête d’entreprise… Notre équipe imagine, installe et démonte votre décoration, partout en Haïti.</p></div><button type="button" class="btn btn-purple decor-ask" data-id="">✨ Demander un devis sur mesure</button></div>
+  <div id="decorTypes" class="chips" data-dyn></div>
+  <div id="decorGrid" class="decor-grid" data-dyn></div>
+  <div class="decor-steps"><div><b>1</b><span>Vous décrivez votre événement et choisissez une formule ou des options.</span></div><div><b>2</b><span>Nous vous envoyons le devis final et les idées de décoration.</span></div><div><b>3</b><span>Vous réservez avec un acompte ; nous installons le jour J.</span></div></div>
+</section>
 <section id="catalogue" class="section wrap">
   <div class="section-top">
     <div>
@@ -110,8 +114,9 @@
       <h2>Un moment pour chaque occasion</h2>
       <p>Prix de départ en gourdes haïtiennes (HTG). Chaque surprise s'adapte à vos envies.</p>
     </div>
-    <select id="categoryFilter" aria-label="Filtrer par catégorie"><option value="">Toutes les catégories</option></select>
+    <div class="catalogue-actions"><a class="btn btn-gold create-cta" href="#commander">✨ Créer une surprise</a><select id="categoryFilter" aria-label="Filtrer par catégorie"><option value="">Toutes les catégories</option></select></div>
   </div>
+  <a class="create-band" href="#commander"><span>✨</span><div><b>Envie d’une surprise unique ?</b><small>Composez-la vous-même : cadeaux de la boutique, services, livraison… le prix s’affiche à chaque choix.</small></div><em>Créer ma surprise →</em></a>
   <div id="catalogueGrid" class="cards carousel"></div>
 </section>
 
@@ -237,6 +242,11 @@
     <div><div class="eyebrow">CONTACT</div><h2>Parlons de votre événement</h2><p id="aboutText">Une question, un devis, une idée ? Écrivez-nous, nous vous répondons rapidement.</p><div id="contactActions" class="actions"></div></div>
     <div id="contactInfo" class="contact-info"></div>
   </div>
+  <div class="wrap contact-faq" id="faq">
+    <div class="section-top"><div><div class="eyebrow">FAQ</div><h2>Questions fréquentes</h2><p>Paiement, livraison, délais, location… les réponses aux questions les plus posées.</p></div><input id="cFaqSearch" type="search" placeholder="Rechercher une question" maxlength="80"></div>
+    <div id="cFaqList" class="cfaq-list" data-dyn></div>
+    <p class="cfaq-more"><a href="/faq">Voir toutes les questions et la politique de cookies →</a></p>
+  </div>
 </section>
 
 <section id="espace" class="section pale">
@@ -316,6 +326,25 @@
     <label>Votre courriel (reçu et suivi)<input name="sender_email" type="email" required maxlength="200" autocomplete="email"></label>
     <div id="cartTotals" class="summary" data-dyn></div>
     <button class="btn btn-gold full" id="cartSubmit">Commander et payer</button><p class="hint">Aucun compte nécessaire. Paiement de la totalité à la commande ; référence, reçu et suivi par courriel.</p>
+  </form></div></div>
+<div id="decorModal" class="modal hidden"><div class="modal-content wide"><button type="button" id="closeDecor" class="close" aria-label="Fermer">×</button><h2>🎈 Demande de décoration</h2><p>Décrivez votre événement : nous vous confirmons le devis final (par courriel et WhatsApp) avant tout paiement.</p>
+  <form id="decorForm" novalidate>
+    <label>Formule<select name="formula_id" id="dFormula" data-dyn></select></label>
+    <h3 class="form-h">📅 Votre événement</h3>
+    <div class="form-grid"><label>Type d’événement<select name="event_type" id="dType" required data-dyn></select></label><label>Pour qui ? (facultatif)<input name="celebrant" maxlength="120" placeholder="Ex. Les 18 ans de Sarah"></label></div>
+    <div class="form-grid"><label>Date<input type="date" name="date" id="dDate" required></label><label>Heure de début<input type="time" name="time" required value="15:00"></label></div>
+    <div class="form-grid"><label>Nombre d’invités<input type="number" name="guests" min="1" max="5000" required value="50"></label><label>Lieu<select name="venue" id="dVenue" required data-dyn></select></label></div>
+    <div class="form-grid"><label>Ville<input name="city" required maxlength="120"></label><label>Adresse du lieu<input name="address" required maxlength="500" placeholder="Rue, quartier, nom de la salle"></label></div>
+    <h3 class="form-h">🎨 Vos envies</h3>
+    <div class="form-grid"><label>Thème (facultatif)<input name="theme" maxlength="300" placeholder="Ex. Bohème, Princesse, Tropical…"></label><label>Couleurs (facultatif)<input name="colors" maxlength="200" placeholder="Ex. blanc, or et rose poudré"></label></div>
+    <label>Inspiration (facultatif)<input name="inspiration" maxlength="1000" placeholder="Lien Pinterest, Instagram…"></label>
+    <h3 class="form-h">➕ Options à la carte <small>(facultatif)</small></h3><div id="dOptions" class="decor-opts" data-dyn></div>
+    <label>Précisions (facultatif)<textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+    <h3 class="form-h">💌 Vos coordonnées</h3>
+    <div class="form-grid"><label>Votre nom<input name="name" required maxlength="120" autocomplete="name"></label><label>Téléphone / WhatsApp<input name="phone" type="tel" required maxlength="25" autocomplete="tel"></label></div>
+    <label>Courriel<input name="email" type="email" required maxlength="200" autocomplete="email"></label>
+    <div id="dTotal" class="summary" data-dyn></div>
+    <button class="btn btn-gold full" id="dSubmit">Envoyer ma demande</button><p class="hint" id="dHint" data-dyn></p>
   </form></div></div>
 <div id="shareModal" class="modal hidden"><div class="modal-content share-modal"><button type="button" id="closeShare" class="close" aria-label="Fermer">×</button><h2>↗ Partager</h2><p>Faites découvrir ce moment magique à vos proches.</p><div id="shareBody" data-dyn></div></div></div>
 <div id="payModal" class="modal hidden"><div class="modal-content"><button type="button" id="closePay" class="close" aria-label="Fermer">×</button><h2 id="payTitle">Paiement de votre commande</h2><div id="payInfo"></div><div id="payActions" class="pay-actions"></div></div></div>

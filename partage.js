@@ -22,6 +22,12 @@ function item(db, type, id, ht) {
     return { title: pick(x, 'name'), price: (ht ? 'Apati ' : 'À partir de ') + money(x.price_htg), amount: x.price_htg, desc: [pick(x, 'description'), inc.length ? (ht ? 'Gen ladan l : ' : 'Inclus : ') + inc.join(', ') : ''].filter(Boolean).join(' — '),
       photo: x.photo || (x.photos || [])[0] || '', target: '#catalogue', label: ht ? 'Sipriz' : 'Surprise', express: !!x.express };
   }
+  if (type === 'd') {
+    const x = (db.decorFormulas || []).find(f => f.id === id && f.active !== false); if (!x) return null;
+    const inc = (ht && x.includes_ht?.length ? x.includes_ht : x.includes || []).slice(0, 4);
+    return { title: (ht ? 'Dekorasyon : ' : 'Décoration : ') + pick(x, 'name'), price: (ht ? 'Apati ' : 'À partir de ') + money(x.price_htg), amount: x.price_htg, desc: [pick(x, 'description'), x.guests, inc.length ? (ht ? 'Gen ladan l : ' : 'Inclus : ') + inc.join(', ') : ''].filter(Boolean).join(' — '),
+      photo: x.photo || (x.photos || [])[0] || '', target: '#decoration', label: ht ? 'Dekorasyon evènman' : 'Décoration événement' };
+  }
   if (type === 'b') {
     const x = (db.products || []).find(p => p.id === id && p.active !== false); if (!x) return null;
     return { title: pick(x, 'name'), price: money(x.price_htg), amount: x.price_htg, desc: pick(x, 'description') + (x.stock > 0 ? '' : (ht ? ' — Fini pou kounye a' : ' — Bientôt de retour')), photo: x.photo || '', target: '#boutique', label: ht ? 'Boutik kado' : 'Boutique de cadeaux' };
@@ -35,7 +41,7 @@ function item(db, type, id, ht) {
 
 /** Répond à GET /p/<type>/<id>. Renvoie true si la requête est traitée. */
 export function handle(db, req, res, p, publicUrl) {
-  const mm = /^\/p\/([sbl])\/([\w-]{6,64})$/.exec(p); if (!mm) return false;
+  const mm = /^\/p\/([sbld])\/([\w-]{6,64})$/.exec(p); if (!mm) return false;
   const q = new URL(req.url, 'http://x').searchParams, ht = q.get('lang') === 'ht';
   const it = item(db, mm[1], mm[2], ht), base = publicUrl();
   const target = it ? `${base}/?voir=${mm[1]}:${mm[2]}${ht ? '&lang=ht' : ''}${it.target}` : base + '/';

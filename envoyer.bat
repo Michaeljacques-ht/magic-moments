@@ -1,6 +1,9 @@
 @echo off
 chcp 65001 >nul
 setlocal
+rem Dépôt GitHub du site (utilisé si aucune adresse valide n'est configurée)
+set "DEFAULT_REMOTE=https://github.com/Michaeljacques-ht/magic-moments.git"
+set "RETRIED="
 title Magic Moments - Envoi vers GitHub
 cd /d "%~dp0"
 
@@ -26,18 +29,35 @@ echo.
 rem --- Premier envoi : création du dépôt local ---
 if exist ".git" goto :hasrepo
 echo Ce dossier n'est pas encore relié à GitHub.
-set /p REMOTE=Collez l'adresse du dépôt GitHub (ex. https://github.com/compte/magic-moments.git) : 
-if "%REMOTE%"=="" goto :cancel
-git init
+echo Dépôt par défaut : %DEFAULT_REMOTE%
+set "REMOTE="
+set /p REMOTE=Adresse du dépôt GitHub (appuyez simplement sur Entrée pour le dépôt par défaut) : 
+call :cleanremote
+git init -q
 git branch -M main
 git remote add origin "%REMOTE%"
 echo.
 :hasrepo
 
-git remote get-url origin >nul 2>nul
-if errorlevel 1 goto :noremote
+rem --- Vérifie l'adresse enregistrée et la corrige si elle est invalide ---
+set "CUR="
+for /f "delims=" %%u in ('git remote get-url origin 2^>nul') do set "CUR=%%u"
+if not defined CUR (
+  git remote add origin "%DEFAULT_REMOTE%"
+  set "CUR=%DEFAULT_REMOTE%"
+)
+call :checkurl "%CUR%"
+if errorlevel 1 (
+  echo Adresse GitHub invalide : "%CUR%"
+  echo Correction automatique : %DEFAULT_REMOTE%
+  git remote set-url origin "%DEFAULT_REMOTE%"
+  set "CUR=%DEFAULT_REMOTE%"
+)
+echo Dépôt GitHub : %CUR%
+echo.
 
 rem --- Reprendre l'historique déjà présent sur GitHub (fichiers envoyés depuis le site, etc.) ---
+:fetch
 echo Récupération de l'état actuel de GitHub...
 git fetch origin
 if errorlevel 1 goto :fetchfail
@@ -119,9 +139,20 @@ echo Le commit est conservé localement ; relancez envoyer.bat pour réessayer.
 goto :end
 
 :fetchfail
+if defined RETRIED goto :fetchfail2
+if /i "%CUR%"=="%DEFAULT_REMOTE%" goto :fetchfail2
 echo.
-echo ERREUR : impossible de lire le dépôt GitHub. Vérifiez l'adresse et la connexion Internet.
-echo Pour corriger l'adresse : git remote set-url origin https://github.com/compte/depot.git
+echo L'adresse "%CUR%" ne répond pas : nouvel essai avec le dépôt par défaut.
+git remote set-url origin "%DEFAULT_REMOTE%"
+set "CUR=%DEFAULT_REMOTE%"
+set "RETRIED=1"
+goto :fetch
+:fetchfail2
+echo.
+echo ERREUR : impossible de lire le dépôt GitHub (%CUR%).
+echo  - Vérifiez la connexion Internet ;
+echo  - Vérifiez que le dépôt existe et que vous êtes connecté à GitHub (une fenêtre de connexion peut s'ouvrir) ;
+echo  - Pour changer l'adresse : git remote set-url origin https://github.com/compte/depot.git
 goto :end
 
 :fail
@@ -133,8 +164,35 @@ goto :end
 
 :cancel
 echo Envoi annulé.
+goto :end
+
+rem --- Nettoie l'adresse saisie : guillemets, espaces, compte/depot sans https, .git manquant ---
+:cleanremote
+if not defined REMOTE set "REMOTE=%DEFAULT_REMOTE%"
+set "REMOTE=%REMOTE:"=%"
+set "REMOTE=%REMOTE: =%"
+if not defined REMOTE set "REMOTE=%DEFAULT_REMOTE%"
+if /i not "%REMOTE:~0,4%"=="http" set "REMOTE=https://github.com/%REMOTE%"
+if /i not "%REMOTE:~-4%"==".git" set "REMOTE=%REMOTE%.git"
+call :checkurl "%REMOTE%"
+if errorlevel 1 (
+  echo Adresse non reconnue, utilisation du dépôt par défaut.
+  set "REMOTE=%DEFAULT_REMOTE%"
+)
+exit /b 0
+
+rem --- Adresse valide : https://github.com/compte/depot(.git) ---
+:checkurl
+setlocal EnableDelayedExpansion
+set "U=%~1"
+> "%TEMP%\mm_url.txt" echo(!U!
+findstr /r /i /c:"^https://github\.com/[A-Za-z0-9_.-][A-Za-z0-9_.-]*/[A-Za-z0-9_.-][A-Za-z0-9_.-]*$" "%TEMP%\mm_url.txt" >nul
+set "RC=!errorlevel!"
+del "%TEMP%\mm_url.txt" >nul 2>nul
+endlocal & exit /b %RC%
 
 :end
 echo.
 pause
 endlocal
+exit /b

@@ -10,7 +10,7 @@ import { randomUUID } from 'node:crypto';
 
 export const HANDLED = Symbol('handled');
 
-export const INCOME_CATEGORIES = ['Ventes de surprises', 'Ventes boutique', 'Locations de matériel', 'Acomptes clients', 'Autres recettes'];
+export const INCOME_CATEGORIES = ['Ventes de surprises', 'Ventes boutique', 'Décoration événementielle', 'Locations de matériel', 'Acomptes clients', 'Autres recettes'];
 export const EXPENSE_CATEGORIES = ['Achats de fournitures', 'Achats de marchandises', 'Achat de matériel', 'Pâtisserie et fleurs', 'Salaires et primes', 'Transport et livraison', 'Carburant et électricité', 'Loyer', 'Communication et internet', 'Marketing et publicité', 'Location d’équipement', 'Entretien et réparations', 'Frais bancaires et de paiement', 'Taxes et impôts', 'Remboursements clients', 'Autres dépenses'];
 const CONTRACTS = ['CDI', 'CDD', 'Temps partiel', 'Stage', 'Journalier', 'Prestataire'];
 const JOB_TYPES = ['Temps plein', 'Temps partiel', 'Contrat', 'Stage', 'Journalier'];
@@ -25,6 +25,7 @@ const amountOk = (v, allowZero = false) => Number.isInteger(v) && (allowZero ? v
 
 /** Ajoute les collections manquantes (données existantes conservées). */
 export function migrate(db) {
+  for (const f of db.faq || []) if (f.q === 'Dois-je créer un compte pour commander ?' && f.a === 'Non. Vous pouvez envoyer une demande sans compte. Un compte vous permet en plus de suivre vos commandes, vos reçus et vos liens Magic Live. Un compte est nécessaire pour louer du matériel.') { f.a = 'Non. Aucun compte n’est nécessaire : surprises, boutique, cadeau express, location et décoration se commandent sans compte. Suivez vos demandes, vos paiements et vos reçus dans « Suivre ma commande », avec la référence et votre téléphone, ou avec un code reçu par courriel.'; f.a_ht = 'Non. Ou pa bezwen kont : sipriz, boutik, kado eksprès, lokasyon ak dekorasyon, ou ka kòmande yo san kont. Swiv demann, peman ak resi ou yo nan « Swiv kòmand mwen », ak referans lan ak telefòn ou, oswa ak yon kòd ou resevwa pa imèl.'; }
   db.announcements ??= []; db.jobs ??= []; db.applications ??= []; db.employees ??= []; db.payroll ??= []; db.advances ??= []; db.files ??= []; db.entries ??= [];
   db.accounts ??= [
     { id: 'caisse', name: 'Caisse (espèces)', opening: 0 }, { id: 'moncash', name: 'MonCash', opening: 0 }, { id: 'natcash', name: 'NatCash', opening: 0 },
@@ -43,7 +44,7 @@ const titleOf = (kind, x) => kind === 'order' ? `${x.package_name} — ${x.recip
 export function recordPayment(db, kind, x, amount, account, part, id, now) {
   if (!(amount > 0)) return;
   const base = baseRef(kind, x), n = incomesOf(db, base).length;
-  db.entries.push({ id: id(), date: now().slice(0, 10), type: 'income', category: kind === 'order' ? (x.shop ? 'Ventes boutique' : 'Ventes de surprises') : 'Locations de matériel', amount, account: account || 'caisse',
+  db.entries.push({ id: id(), date: now().slice(0, 10), type: 'income', category: kind === 'order' ? (x.shop ? 'Ventes boutique' : x.decor ? 'Décoration événementielle' : 'Ventes de surprises') : 'Locations de matériel', amount, account: account || 'caisse',
     label: (part === 'deposit' ? 'Acompte — ' : part === 'balance' ? 'Solde — ' : '') + titleOf(kind, x), ref: n ? base + ':' + (n + 1) : base, auto: true, created_at: now() });
 }
 // Marquage « payé » par l'administrateur : on n'enregistre que ce qui n'a pas encore été compté.
@@ -326,7 +327,7 @@ export function migrateTraffic(db) {
 /* ---------- FAQ par défaut (modifiable dans l'administration) ---------- */
 const DEFAULT_FAQ = [
   { category: 'Commandes', q: 'Comment commander une surprise ?', q_ht: 'Kijan pou m kòmande yon sipriz ?', a: 'Choisissez une surprise prête dans « Nos surprises » ou composez la vôtre dans « Créer une surprise », puis indiquez vos coordonnées, celles de la personne à surprendre et la date de livraison. Notre équipe vous recontacte pour confirmer.', a_ht: 'Chwazi yon sipriz ki pare nan « Sipriz nou yo » oswa konpoze pa w nan « Kreye yon sipriz », epi mete enfòmasyon ou, enfòmasyon moun w ap fè sipriz la ak dat livrezon an. Ekip nou an ap kontakte w pou konfime.' },
-  { category: 'Commandes', q: 'Dois-je créer un compte pour commander ?', q_ht: 'Èske m bezwen kreye yon kont pou m kòmande ?', a: 'Non. Vous pouvez envoyer une demande sans compte. Un compte vous permet en plus de suivre vos commandes, vos reçus et vos liens Magic Live. Un compte est nécessaire pour louer du matériel.', a_ht: 'Non. Ou ka voye yon demann san kont. Yon kont pèmèt ou swiv kòmand ou, resi ou ak lyen Magic Live ou yo. Ou bezwen yon kont pou lwe materyèl.' },
+  { category: 'Commandes', q: 'Dois-je créer un compte pour commander ?', q_ht: 'Èske m bezwen kreye yon kont pou m kòmande ?', a: 'Non. Aucun compte n’est nécessaire : surprises, boutique, cadeau express, location et décoration se commandent sans compte. Suivez vos demandes, vos paiements et vos reçus dans « Suivre ma commande », avec la référence et votre téléphone, ou avec un code reçu par courriel.', a_ht: 'Non. Ou pa bezwen kont : sipriz, boutik, kado eksprès, lokasyon ak dekorasyon, ou ka kòmande yo san kont. Swiv demann, peman ak resi ou yo nan « Swiv kòmand mwen », ak referans lan ak telefòn ou, oswa ak yon kòd ou resevwa pa imèl.' },
   { category: 'Commandes', q: 'Combien de temps à l’avance dois-je commander ?', q_ht: 'Konbyen tan davans pou m kòmande ?', a: 'Le délai est indiqué sur chaque surprise. Plus vous commandez tôt, plus nous pouvons respecter vos choix (couleurs, saveurs, décoration), surtout pendant les fêtes.', a_ht: 'Delè a ekri sou chak sipriz. Plis ou kòmande bonè, plis nou ka respekte chwa ou (koulè, gou, dekorasyon), sitou nan peryòd fèt yo.' },
   { category: 'Paiement', q: 'Quand et comment dois-je payer ?', q_ht: 'Kilè e kijan pou m peye ?', a: 'Aucun paiement n’est demandé à l’envoi de la demande. Une fois la commande confirmée par notre équipe, vous recevez un lien de paiement sécurisé PlopPlop (MonCash, NatCash ou Kashpaw).', a_ht: 'Nou pa mande w peye lè w voye demann lan. Lè ekip nou an fin konfime kòmand lan, ou resevwa yon lyen peman sekirize PlopPlop (MonCash, NatCash oswa Kashpaw).' },
   { category: 'Paiement', q: 'Le montant affiché est-il définitif ?', q_ht: 'Èske montan ki parèt la se montan final la ?', a: 'Le montant affiché est une estimation. Notre équipe confirme le montant final avant tout paiement, selon la disponibilité et vos demandes particulières.', a_ht: 'Montan ki parèt la se yon estimasyon. Ekip nou an konfime montan final la anvan ou peye anyen, selon disponiblite ak demann espesyal ou yo.' },

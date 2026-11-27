@@ -12,6 +12,7 @@ import * as BQ from './boutique.js';
 import * as ST from './stock.js';
 import * as EQ from './equipe.js';
 import * as PT from './partage.js';
+import * as DC from './decoration.js';
 import { PLOP, passerelleActive, initierPaiement, verifierPaiement } from './plopplop.js';
 import { CATEGORIES_HT, PACKAGES_HT, ELEMENTS_HT, ELEMENT_CATEGORIES_HT, EQUIPMENT_HT, variantHT, LABELS, MAIL, formatDate } from './kreyol.js';
 const root=path.dirname(fileURLToPath(import.meta.url)), dir=process.env.DATA_DIR||path.join(root,'data');
@@ -97,7 +98,7 @@ function seedV10(){if(db.settings.seed_v10)return;
   e.description??='';e.description_ht??='';e.photo??='';for(const k of ['colors','sizes','colors_ht','sizes_ht'])delete e[k]}
  db.settings.seed_v10=true;save()}
 seedV10();
-G.migrate(db);G.migrateTraffic(db);E.migrate(db);MU.migrate(db);SV.migrate(db);XP.migrate(db);BQ.migrate(db,()=>randomUUID(),()=>new Date().toISOString());ST.migrate(db,()=>randomUUID(),()=>new Date().toISOString());EQ.migrate(db);if(!db.settings.services_init){db.settings.services_init=true;for(const e of db.elements){e.service??=['Services','Décoration'].includes(e.category);if(e.name==='Transport'&&e.category==='Services'){e.name='Livraison';e.name_ht='Livrezon'}}}migratePay();save();
+G.migrate(db);G.migrateTraffic(db);E.migrate(db);MU.migrate(db);SV.migrate(db);XP.migrate(db);BQ.migrate(db,()=>randomUUID(),()=>new Date().toISOString());ST.migrate(db,()=>randomUUID(),()=>new Date().toISOString());EQ.migrate(db);DC.migrate(db,()=>randomUUID(),()=>new Date().toISOString());if(!db.settings.services_init){db.settings.services_init=true;for(const e of db.elements){e.service??=['Services','Décoration'].includes(e.category);if(e.name==='Transport'&&e.category==='Services'){e.name='Livraison';e.name_ht='Livrezon'}}}migratePay();save();
 // Courriels : Brevo (BREVO_API_KEY) en priorité, sinon Resend (RESEND_API_KEY). Expéditeur : MAIL_FROM (ou BREVO_SENDER_EMAIL), nom : MAIL_FROM_NAME.
 const senderEmail=()=>{const f=process.env.BREVO_SENDER_EMAIL||process.env.MAIL_FROM||'';const x=/<([^>]+)>/.exec(f);return (x?x[1]:f).trim()};
 const senderName=()=>process.env.MAIL_FROM_NAME||(/^(.*?)\s*</.exec(process.env.MAIL_FROM||'')?.[1]||'').replace(/"/g,'').trim()||'Magic Moments';
@@ -237,6 +238,8 @@ if(await MU.routes(ctx,{m,p,b,u,json}))return;
 if(await SV.routes(SVH,{m,p,b,req,res,u,json}))return;
 if(XP.routes(ctx,{m,p,b,u,json}))return;
 if(ST.routes(ctx,{m,p,b,u,req,res,json}))return;
+if(DC.routes(ctx,{m,p,b,u,req,json},{created:o=>{const d=o.decor_details,c=o.contact;E.sendStage(H,'order',o,'pending')||notify(o,'received_guest');
+ alertAdmin('🎈 Demande de décoration — '+d.event_type+' le '+fmtDate(o.event_at),['Nouvelle demande de décoration événementielle (devis à confirmer).','',o.package_name,...o.options.map(i=>'• '+i.name+(i.quantity>1?' × '+i.quantity:'')+' : '+i.price+' HTG'),'Estimation : '+o.total_htg+' HTG','',d.event_type+' · '+d.guests+' invités · '+d.venue_label,'Lieu : '+o.city+' — '+o.address,...(d.theme?['Thème : '+d.theme]:[]),...(d.colors?['Couleurs : '+d.colors]:[]),...(d.inspiration?['Inspiration : '+d.inspiration]:[]),...(d.notes?['Notes : '+d.notes]:[]),'','Client : '+c.sender_name+' · '+c.sender_phone+' · '+c.sender_email,'Confirmez le montant final dans la fiche (Montant à payer) puis passez la commande en « Confirmée ».'],{order_id:o.id})}}))return;
 if(BQ.routes(ctx,{m,p,b,u,req,json},{created:o=>{const ht=L(o)==='ht',ref='MM-'+o.id.slice(0,8).toUpperCase(),c=o.contact;
  queueMail(c.sender_email,(ht?'Kòmand boutik ou — ':'Votre commande boutique — ')+ref,[(ht?'Bonjou ':'Bonjour ')+c.sender_name+',','',ht?'Mèsi pou acha w la nan boutik Magic Moments!':'Merci pour votre achat dans la boutique Magic Moments !','',...o.options.map(i=>'• '+((ht&&i.name_ht)||i.name)+(i.quantity>1?' × '+i.quantity:'')+' : '+i.price+' HTG'),(ht?'Total : ':'Total : ')+o.total_htg+' HTG','',(o.delivery==='pickup'?(ht?'Retrè : ':'Retrait : ')+o.address:(ht?'Livrezon : ':'Livraison : ')+o.city+', '+o.address)+' — '+formatDate(o.event_at,L(o)).split(/ à | a /)[0],(ht?'Pou : ':'Pour : ')+o.recipient,'',...(H.payable('order',o)?[(ht?'Peye kounye a pou nou prepare kòmand lan : ':'Réglez maintenant pour que nous préparions la commande : ')+payLink(o),'']:[]),(ht?'Referans : ':'Référence : ')+ref,(ht?'Swiv kòmand ou : ':'Suivre votre commande : ')+SV.trackLink(publicUrl(),'order',o)].join('\n'),{order_id:o.id,stage:'pending'});
  alertAdmin('🛍️ Commande boutique — '+o.total_htg+' HTG',['Nouvelle commande dans la boutique de cadeaux.','',...o.options.map(i=>'• '+i.name+(i.quantity>1?' × '+i.quantity:'')+' : '+i.price+' HTG'),'Total : '+o.total_htg+' HTG',(o.delivery==='pickup'?'Retrait':'Livraison')+' le '+fmtDate(o.event_at)+' — '+o.city+' · '+o.address,'Pour : '+o.recipient+(c.recipient_phone?' · '+c.recipient_phone:''),'Client : '+c.sender_name+' · '+c.sender_phone+' · '+c.sender_email],{order_id:o.id})}}))return;

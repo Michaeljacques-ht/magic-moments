@@ -59,7 +59,7 @@ function setLang(l) {
   const keep = customLines();
   lang = l; try { localStorage.setItem('mm_lang', l); } catch {}
   translateStatic();
-  renderCategories(); renderCatalog(); renderElements(keep); setBuildMode(state.buildMode); renderEquipment(); renderGallery(); renderContact(); renderTestimonials(); renderExpress(); renderShop(); renderCart(); renderAddons();
+  renderCategories(); renderCatalog(); renderElements(keep); setBuildMode(state.buildMode); renderEquipment(); renderGallery(); renderContact(); renderTestimonials(); renderExpress(); renderShop(); renderCart(); renderAddons(); renderDecor(); renderFaq();
   setMode(state.mode); goStep(state.step); renderAuth(); refreshOrders(); renderTicker(); if (state.jobs && !$('#careersModal').classList.contains('hidden')) renderJobs(); if (state.pay) renderPay();
 }
 $('#langToggle').onclick = () => setLang(lang === 'ht' ? 'fr' : 'ht');
@@ -653,13 +653,13 @@ function goAccount() { if (state.user?.role === 'admin') { location.href = '/adm
 document.addEventListener('click', e => { const a = e.target.closest('[data-account]'); if (!a) return; e.preventDefault(); openDrawer(false); goAccount(); });
 /* ---------- Navigation par pages ----------
    Chaque entrée du menu affiche uniquement sa page (pas tout le site qui défile). */
-const PAGES = { accueil: ['accueil', 'express', 'diaspora', 'avis'], express: ['express'], boutique: ['boutique'], catalogue: ['catalogue'], commander: ['commander'], location: ['location'], gallery: ['gallery'], avis: ['avis'], contact: ['contact'], espace: ['espace'], live: ['espace'] };
+const PAGES = { accueil: ['accueil', 'express', 'diaspora', 'avis'], faq: ['contact'], express: ['express'], boutique: ['boutique'], decoration: ['decoration'], catalogue: ['catalogue'], commander: ['commander'], location: ['location'], gallery: ['gallery'], avis: ['avis'], contact: ['contact'], espace: ['espace'], live: ['espace'] };
 const PAGE_SECTIONS = [...new Set(Object.values(PAGES).flat())];
 function showPage(id, anchor) {
   if (!PAGES[id]) id = 'accueil';
   const keep = PAGES[id]; state.page = id;
   for (const s of PAGE_SECTIONS) document.getElementById(s)?.classList.toggle('off-page', !keep.includes(s));
-  const page = id === 'live' ? 'espace' : id;
+  const page = id === 'live' ? 'espace' : id === 'commander' ? 'catalogue' : id === 'faq' ? 'contact' : id;
   $$('.main-nav a, .drawer-nav a').forEach(a => a.classList.toggle('current', a.getAttribute('href') === '#' + page));
   $$('.bottom-nav a').forEach(a => a.classList.toggle('active', a.dataset.sec === page));
   const el = anchor && document.getElementById(anchor);
@@ -668,7 +668,7 @@ function showPage(id, anchor) {
 function routeFromHash() {
   const h = location.hash.slice(1);
   if (/^(reset|payer|suivre|activer)/.test(h)) return;
-  showPage(h, h === 'live' ? 'live' : null);
+  showPage(h, h === 'live' || h === 'faq' ? h : null);
 }
 window.addEventListener('hashchange', routeFromHash);
 // Un clic sur la page déjà ouverte la ramène en haut.
@@ -859,15 +859,87 @@ $('#cartForm').onsubmit = async e => {
   } catch (err) { toast(err.message); loadShop(); } finally { btn.disabled = false; }
 };
 
+/* ---------- Décoration événement : formules, options, demande de devis ---------- */
+const DECOR_ICON = { 'Anniversaire': '🎂', 'Mariage': '💍', 'Baby shower': '🍼', 'Baptême': '🕊️', 'Première communion': '🕊️', 'Graduation': '🎓', 'Fiançailles': '💞', 'Fête d’entreprise': '🏢', 'Fête religieuse': '⛪', 'Gender reveal': '🎀', 'Fête des mères / pères': '💐' };
+state.decorType = ''; state.decorQty = {};
+async function loadDecor() { try { state.decor = await api('/api/decor'); } catch { state.decor = null; } renderDecor(); setTimeout(focusShared, 50); }
+const evName = n => (lang === 'ht' && state.decor?.event_types.find(e => e.name === n)?.name_ht) || n;
+function renderDecor() {
+  const D = state.decor, on = !!D?.settings.enabled && D.formulas.length + D.options.length > 0;
+  $('#decoration').classList.toggle('hidden', !on); $$('a[href="#decoration"]').forEach(a => a.classList.toggle('hidden', !on)); if (!on) return;
+  const used = [...new Set(D.formulas.map(f => f.event_type))];
+  $('#decorTypes').innerHTML = used.length > 1 ? ['', ...used].map(c => `<button type="button" class="chip ${c === state.decorType ? 'on' : ''}" data-type="${escapeHTML(c)}">${c ? (DECOR_ICON[c] || '🎉') + ' ' + escapeHTML(evName(c)) : t('Tous les événements')}</button>`).join('') : '';
+  const list = D.formulas.filter(f => !state.decorType || f.event_type === state.decorType);
+  $('#decorGrid').innerHTML = list.map(f => { const inc = trList(f, 'includes'), ph = f.photo || f.photos?.[0];
+    return `<article class="decor-card" data-item="d:${escapeHTML(f.id)}"><div class="decor-img">${ph ? `<img src="/media/${escapeHTML(ph)}" alt="${escapeHTML(tr(f, 'name'))}" loading="lazy">` : `<span>${DECOR_ICON[f.event_type] || '🎈'}</span>`}<span class="share-btn" role="button" tabindex="0" data-share="d:${escapeHTML(f.id)}" title="${t('Partager')}" aria-label="${t('Partager')}">↗</span>${f.featured ? `<b class="shop-star">⭐ ${t('Coup de cœur')}</b>` : ''}</div>
+      <div class="decor-body"><small>${DECOR_ICON[f.event_type] || '🎉'} ${escapeHTML(evName(f.event_type))}${f.guests ? ' · 👥 ' + escapeHTML(f.guests) : ''}</small><h3>${escapeHTML(tr(f, 'name'))}</h3><p>${escapeHTML(tr(f, 'description'))}</p>
+      ${inc.length ? `<ul class="includes">${inc.slice(0, 6).map(x => `<li>${escapeHTML(x)}</li>`).join('')}</ul>` : ''}
+      <div class="card-bottom"><span class="price"><small>${t('À partir de')}</small>${money(f.price_htg)}</span><button type="button" class="btn btn-purple decor-ask" data-id="${escapeHTML(f.id)}">${t('Demander un devis')}</button></div></div></article>`; }).join('') || `<p class="empty">${t('Décrivez votre projet : nous créons une décoration sur mesure.')}</p>`;
+}
+$('#decorTypes').addEventListener('click', e => { const c = e.target.closest('[data-type]'); if (c) { state.decorType = c.dataset.type; renderDecor(); } });
+function decorTotal() {
+  const D = state.decor, f = D.formulas.find(x => x.id === $('#dFormula').value), opts = Object.entries(state.decorQty).map(([id, q]) => ({ o: D.options.find(x => x.id === id), q })).filter(l => l.o && l.q > 0);
+  return { f, opts, total: (f?.price_htg || 0) + opts.reduce((a, l) => a + l.o.price_htg * l.q, 0) };
+}
+function renderDecorForm() {
+  const D = state.decor, T = decorTotal(), unit = o => (lang === 'ht' && o.unit_ht) || o.unit;
+  $('#dOptions').innerHTML = D.options.map(o => { const q = state.decorQty[o.id] || 0;
+    return `<div class="addon ${q ? 'on' : ''}"><span class="grow"><b>${escapeHTML(tr(o, 'name'))}</b><small>${money(o.price_htg)} · ${escapeHTML(unit(o))}</small></span>${q ? `<span class="qty" data-id="${o.id}"><button type="button" data-d="-1">−</button><em>${q}</em><button type="button" data-d="1">+</button></span>` : `<button type="button" class="btn btn-outline-dark d-add" data-id="${o.id}">＋ ${t('Ajouter')}</button>`}</div>`; }).join('');
+  $('#dTotal').innerHTML = `${T.f ? `<p>${t('Formule')} : <b>${escapeHTML(tr(T.f, 'name'))}</b> — ${money(T.f.price_htg)}</p>` : `<p>${t('Décoration sur mesure')}</p>`}${T.opts.map(l => `<p>+ ${escapeHTML(tr(l.o, 'name'))} × ${l.q} — ${money(l.o.price_htg * l.q)}</p>`).join('')}<p class="total">${t('Estimation')} : <b>${T.total ? money(T.total) : t('sur devis')}</b></p>`;
+  $('#dHint').textContent = t('Le montant final est confirmé par notre équipe selon le lieu, le nombre d’invités et vos envies.') + (D.settings.travel_note ? ' ' + t(D.settings.travel_note) : '');
+}
+function openDecor(id) {
+  const D = state.decor, f = $('#decorForm'); if (!D) return;
+  $('#dFormula').innerHTML = `<option value="">✨ ${t('Décoration sur mesure (sans formule)')}</option>` + D.formulas.map(x => `<option value="${x.id}">${escapeHTML(tr(x, 'name'))} — ${t('dès')} ${money(x.price_htg)}</option>`).join('');
+  $('#dFormula').value = id || '';
+  $('#dType').innerHTML = D.event_types.map(e => `<option value="${escapeHTML(e.name)}">${escapeHTML(evName(e.name))}</option>`).join('');
+  const fm = D.formulas.find(x => x.id === id); if (fm) $('#dType').value = fm.event_type; else if (state.decorType) $('#dType').value = state.decorType;
+  $('#dVenue').innerHTML = Object.entries(D.venues).map(([k, v]) => `<option value="${k}">${escapeHTML(t(v))}</option>`).join('');
+  $('#dDate').min = D.settings.first_date; if (!f.elements.date.value || f.elements.date.value < D.settings.first_date) f.elements.date.value = D.settings.first_date;
+  for (const [k, v] of Object.entries({ name: state.user?.name, email: state.user?.email, phone: state.user?.phone })) if (v && !f.elements[k].value) f.elements[k].value = v;
+  renderDecorForm(); $('#decorModal').classList.remove('hidden');
+}
+document.addEventListener('click', e => { const b = e.target.closest('.decor-ask'); if (b) openDecor(b.dataset.id); });
+$('#closeDecor').onclick = () => $('#decorModal').classList.add('hidden');
+$('#decorModal').addEventListener('click', e => {
+  if (e.target.id === 'decorModal') { $('#decorModal').classList.add('hidden'); return; }
+  const a = e.target.closest('.d-add'), q = e.target.closest('#dOptions .qty [data-d]'), id = a?.dataset.id || q?.closest('.qty').dataset.id; if (!id) return;
+  const n = Math.max(0, Math.min(1000, (state.decorQty[id] || 0) + (a ? 1 : Number(q.dataset.d)))); if (n) state.decorQty[id] = n; else delete state.decorQty[id]; renderDecorForm();
+});
+$('#dFormula').addEventListener('change', () => { const fm = state.decor.formulas.find(x => x.id === $('#dFormula').value); if (fm) $('#dType').value = fm.event_type; renderDecorForm(); });
+$('#decorForm').onsubmit = async e => {
+  e.preventDefault(); const form = e.target, btn = $('#dSubmit');
+  for (const el of form.querySelectorAll('input,select,textarea')) if (!el.checkValidity()) { el.reportValidity(); return; }
+  const v = Object.fromEntries(new FormData(form)), T = decorTotal(); if (!T.f && !T.opts.length) { toast(t('Choisissez une formule ou au moins une option de décoration.')); return; }
+  btn.disabled = true;
+  try {
+    const o = await post('/api/decor/request', { ...v, guests: Number(v.guests), options: T.opts.map(l => ({ id: l.o.id, quantity: l.q })), lang });
+    remember('order', o.id, o.pay_token); state.decorQty = {}; for (const k of ['celebrant', 'theme', 'colors', 'inspiration', 'notes', 'address']) form.elements[k].value = '';
+    $('#decorModal').classList.add('hidden'); refreshOrders();
+    toast(t('Demande envoyée — référence {r}. Nous vous envoyons le devis final très vite.', { r: refOf('order', o) }));
+  } catch (err) { toast(err.message); } finally { btn.disabled = false; }
+};
+
+/* ---------- FAQ dans la page Contact ---------- */
+state.faq = [];
+async function loadFaq() { try { state.faq = await api('/api/faq'); } catch { state.faq = []; } renderFaq(); }
+function renderFaq() {
+  const q = ($('#cFaqSearch')?.value || '').trim().toLowerCase(), list = state.faq.filter(f => !q || (tr(f, 'q') + ' ' + tr(f, 'a')).toLowerCase().includes(q));
+  $('#faq').classList.toggle('hidden', !state.faq.length);
+  $('#cFaqList').innerHTML = list.slice(0, q ? 30 : 12).map(f => `<details class="cfaq"><summary>${escapeHTML(tr(f, 'q'))}</summary><p>${escapeHTML(tr(f, 'a')).replace(/\n/g, '<br>')}</p></details>`).join('') || `<p>${t('Aucune question ne correspond à votre recherche.')}</p>`;
+}
+$('#cFaqSearch').addEventListener('input', renderFaq);
+loadFaq();
+
 /* ---------- Partage sur les réseaux sociaux ----------
    Le lien /p/<type>/<id> affiche aux réseaux la photo, le nom, la description et le prix. */
 function shareInfo(key) {
   const [k, id] = key.split(':'), ht = lang === 'ht';
-  const x = k === 'b' ? (state.shop?.products || []).find(p => p.id === id) : k === 'l' ? state.equipment.find(e => e.id === id) : state.packages.find(p => p.id === id);
+  const x = k === 'd' ? (state.decor?.formulas || []).find(p => p.id === id) : k === 'b' ? (state.shop?.products || []).find(p => p.id === id) : k === 'l' ? state.equipment.find(e => e.id === id) : state.packages.find(p => p.id === id);
   if (!x) return null;
-  const name = tr(x, 'name'), price = k === 'l' ? money(x.daily_price_htg) + ' ' + t('/ jour') : (k === 's' ? t('À partir de') + ' ' : '') + money(x.price_htg);
-  const photo = k === 's' ? (x.photo || (x.photos || [])[0]) : x.photo;
-  return { url: `${location.origin}/p/${k}/${id}${ht ? '?lang=ht' : ''}`, title: name, price, text: `${name} — ${price}${tr(x, 'description') ? '\n' + tr(x, 'description') : ''}`, photo, icon: k === 'b' ? (SHOP_ICON[x.category] || '🎁') : k === 'l' ? '🪑' : '🎁' };
+  const name = (k === 'd' ? t('Décoration') + ' : ' : '') + tr(x, 'name'), price = k === 'l' ? money(x.daily_price_htg) + ' ' + t('/ jour') : (k === 's' ? t('À partir de') + ' ' : '') + money(x.price_htg);
+  const photo = k === 's' || k === 'd' ? (x.photo || (x.photos || [])[0]) : x.photo;
+  return { url: `${location.origin}/p/${k}/${id}${ht ? '?lang=ht' : ''}`, title: name, price, text: `${name} — ${price}${tr(x, 'description') ? '\n' + tr(x, 'description') : ''}`, photo, icon: k === 'd' ? '🎈' : k === 'b' ? (SHOP_ICON[x.category] || '🎁') : k === 'l' ? '🪑' : '🎁' };
 }
 function openShare(key) {
   const s = shareInfo(key); if (!s) return; state.sharing = s;
@@ -888,7 +960,7 @@ $('#closeShare').onclick = () => $('#shareModal').classList.add('hidden');
 $('#shareModal').onclick = e => { if (e.target.id === 'shareModal') $('#shareModal').classList.add('hidden'); };
 // Arrivée depuis un lien partagé : ?voir=<type>:<id> met la fiche en avant.
 function focusShared() {
-  const q = new URLSearchParams(location.search), v = q.get('voir'); if (!v || !/^[sbl]:[\w-]+$/.test(v)) return;
+  const q = new URLSearchParams(location.search), v = q.get('voir'); if (!v || !/^[sbld]:[\w-]+$/.test(v)) return;
   const el = document.querySelector(`[data-item="${v}"]`); if (!el) return;
   q.delete('voir'); q.delete('lang'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
   setTimeout(() => { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.classList.add('flash'); }, 300);
@@ -927,7 +999,7 @@ async function init() {
     Object.assign(state, { packages, equipment, elements, gallery, settings, testimonials, announcements, music }); $('#musicPick').classList.toggle('hidden', !music.length); depositText('#orderDeposit', orderTotal()); depositText('#rentalDeposit', null); renderTicker(); await loadCategories();
     renderElements(); renderCategories(); renderCatalog(); setBuildMode('custom'); renderEquipment(); renderGallery(); renderContact(); cardDefaults(); setMode('login'); goStep(1);
     try { state.user = (await api('/api/me')).user; } catch {}
-    renderAuth(); refreshOrders(); loadExpress(); setInterval(loadExpress, 300000); loadShop(); checkHashLinks(); focusShared();
+    renderAuth(); refreshOrders(); loadExpress(); setInterval(loadExpress, 300000); loadShop(); loadDecor(); checkHashLinks(); focusShared();
     if (!getCookie('mm_consent')) showCookieBanner(true); else recordVisit();
     if (!state.pay) { try { const p = JSON.parse(sessionStorage.getItem('mm_pay') || 'null'); if (p) openPay(p.id, p.token, p.kind || 'order'); } catch {} }
   } catch (err) { toast(t('Impossible de charger les données : ') + t(err.message)); }

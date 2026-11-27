@@ -243,3 +243,19 @@ Données existantes conservées ; la photo d’accueil actuelle devient la premi
 - Chaque partage utilise un lien dédié (`/p/s/…`, `/p/b/…`, `/p/l/…`) avec balises **Open Graph / Twitter** : les réseaux affichent la **photo** de l’article (ou le logo s’il n’a pas de photo), le **nom**, la **description**, ce qui est **inclus** et le **prix** ; en kreyòl si le site est en kreyòl.
 - La personne qui clique arrive sur la bonne page du site, la fiche partagée mise en avant.
 - Important : `PUBLIC_URL` doit contenir l’adresse publique du site (Render → Environment) pour que les photos s’affichent dans les aperçus.
+
+## Version 26 — Décoration événement
+
+- Nouvelle page **🎈 Décoration** (menu, menu mobile) pour vendre la décoration événementielle : anniversaire, mariage, baby shower, baptême, communion, graduation, fiançailles, fête d’entreprise, fête religieuse, gender reveal…
+  - **Formules** (photo, galerie, type d’événement, nombre d’invités, ce qui est inclus, prix de départ), filtres par type d’événement, mise en avant, bouton Partager.
+  - **Demande de devis** : formule ou décoration sur mesure, type d’événement, personne fêtée, date et heure, invités, lieu (domicile, salle, extérieur, église, hôtel, entreprise), ville et adresse, thème, couleurs, lien d’inspiration, **options à la carte** (arche, photobooth, centres de table par table, housses par chaise, éclairage, tapis rouge, lettres lumineuses, fleurs…) et estimation en direct. Aucun compte nécessaire ; suivi par référence.
+- La demande devient une commande **🎈 Décoration** : alerte détaillée, courriel au client, fiche avec tous les détails ; l’équipe indique le **devis final** (Montant à payer), confirme (lien d’acompte), confie le montage (tâches), puis suit les étapes jusqu’à la fin. Recette comptable « Décoration événementielle ».
+- **Catalogue → Décoration événement** : activation, délai minimum, note de déplacement, formules (FR/KR, photos, inclus) et options (prix, unité). 6 formules et 8 options d’exemple à adapter.
+- En-tête ordinateur : le lien FAQ passe dans le menu ☰ et le pied de page sur les écrans moyens pour laisser la place à « Décoration ».
+
+## Version 27 — Menu simplifié
+- « Créer une surprise » est retiré du menu : la page **Nos surprises** propose un bouton **✨ Créer une surprise** et un bandeau « Envie d’une surprise unique ? » qui ouvrent la création (le raccourci « Créer » du téléphone reste). « Nos surprises » reste en surbrillance pendant la création.
+- « FAQ » est retiré du menu : les **questions fréquentes** s’affichent dans la page **Contact** (recherche, réponses dépliables, français/kreyòl), avec un lien vers la page FAQ complète. Le lien `#faq` ouvre directement cette partie.
+- Réponse FAQ « Dois-je créer un compte ? » mise à jour (plus aucun compte nécessaire).
+- V27.1 : le bouton de connexion affiche « Se connecter » en toutes lettres (ordinateur et téléphone).
+- V27.2 : envoyer.bat corrige seul une adresse GitHub invalide (guillemets, espaces, « compte/dépôt » sans https, caractères parasites) et utilise par défaut https://github.com/Michaeljacques-ht/magic-moments.git ; il suffit d’appuyer sur Entrée lors du premier envoi.
